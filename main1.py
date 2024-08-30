@@ -159,10 +159,10 @@ class ExcelImageDataset(Dataset):
 
 # Define the root directories
 root_dirs = [
-    os.path.join(os.getcwd(), 'standardized_images/images1'),
-    os.path.join('/standardized_images/images2'),
-    os.path.join('/standardized_images/images3'),
-    os.path.join('/standardized_images/images4')
+    os.path.join(os.getcwd(), '/root/stanfordData4321/stanfordData4321/standardized_images/images1'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images2'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images3'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images4')
 ]
 
 # Function to count images per label
