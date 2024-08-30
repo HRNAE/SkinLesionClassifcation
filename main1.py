@@ -42,7 +42,6 @@ img_size = 224
 transform = transforms.Compose([
     transforms.Resize((img_size, img_size)),
     transforms.ToTensor(),
-    transforms.Normalize((0.5,), (0.5,))
 ])
 
 import torch
@@ -160,10 +159,10 @@ class ExcelImageDataset(Dataset):
 
 # Define the root directories
 root_dirs = [
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images1',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images2',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images3',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images4'
+    os.path.join(os.getcwd(), 'standardized_images/images1'),
+    os.path.join('/standardized_images/images2'),
+    os.path.join('/standardized_images/images3'),
+    os.path.join('/standardized_images/images4')
 ]
 
 # Function to count images per label
