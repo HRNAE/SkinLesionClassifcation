@@ -44,11 +44,6 @@ transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
-import torch
-from PIL import Image
-import torchvision.transforms as transforms
-import os
-
 # Define the augmentation and processing pipeline
 augmentation_transforms = transforms.Compose([
     transforms.RandomRotation(degrees=90, expand=False),  # Rotate the image without expanding
@@ -176,6 +171,7 @@ pre_augmentation_counts = count_images_per_label(dataset)
 print("Image counts before augmentation:")
 for label, count in pre_augmentation_counts.items():
     print(f"{label}: {count}")
+
 
 # Save augmented images
 def save_augmented_images_with_exact_cap(dataset, output_dir, target_count=1500):
