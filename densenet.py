@@ -190,7 +190,7 @@ optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
 # Define loss function and optimizer
 criterion = nn.CrossEntropyLoss()
 
-for epoch in range(5):  # Adjust epoch count as needed
+for epoch in range(3):  # Adjust epoch count as needed
     net.train()
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
