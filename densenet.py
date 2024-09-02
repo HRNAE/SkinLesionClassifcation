@@ -29,7 +29,6 @@ img_size = 224
 transform = transforms.Compose([
     transforms.Resize((img_size, img_size)),
     transforms.ToTensor(),
-    transforms.Normalize((0.5,), (0.5,))
 ])
 
 class ExcelImageDataset(Dataset):
@@ -73,10 +72,10 @@ class ExcelImageDataset(Dataset):
 
 # Define the root directories
 root_dirs = [
-    '/root/stanfordData4321/stanfordData4321/images2',
-    '/root/stanfordData4321/stanfordData4321/images1',
-    '/root/stanfordData4321/stanfordData4321/images3',
-    '/root/stanfordData4321/stanfordData4321/images4'
+    os.path.join(os.getcwd(), '/root/stanfordData4321/stanfordData4321/standardized_images/images1'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images2'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images3'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images4')
 ]
 
 # Function to count images per label
@@ -116,7 +115,7 @@ class AugmentedImageDataset(Dataset):
         return image, torch.tensor(label, dtype=torch.long)
 
 # Create the combined dataset using augmented images
-augmented_dataset = AugmentedImageDataset(dataset, './augmented_images', transform)
+augmented_dataset = AugmentedImageDataset(dataset, './augmented_images1', transform)
 print(f"Total images in augmented dataset: {len(augmented_dataset)}")
 
 # Split dataset
