@@ -3,12 +3,12 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-input_folders = ['images4']  
+input_folders = ['images1']  
 output_base_folder = 'standardized_images'
 os.makedirs(output_base_folder, exist_ok=True)
 
 # Define standard size 
-standard_size = (700, 700)  
+standard_size = (224, 224)  
 
 def standardize_image_with_padding(image_path, output_path, size):
     # Read the image
@@ -16,8 +16,7 @@ def standardize_image_with_padding(image_path, output_path, size):
     if image is None:
         print(f"Could not read image {image_path}. Skipping.")
         return
-    # Convert to RGB (if using cv2)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    
     # Get current size
     h, w = image.shape[:2]
     # Compute scaling factors
