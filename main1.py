@@ -46,8 +46,8 @@ transform = transforms.Compose([
 
 # Define the augmentation and processing pipeline
 augmentation_transforms = transforms.Compose([
-    transforms.RandomRotation(degrees=90, expand=False),  # Rotate the image without expanding
-    transforms.Resize((700, 700)),  # Ensure consistency in size after rotation
+    transforms.RandomRotation(degrees=90, expand=False, fill=(255, 255, 255)),  # Rotate the image without expanding
+    transforms.Resize((224, 224)),  # Ensure consistency in size after rotation
     transforms.Pad(padding=(0, 0, 0, 0), fill=(255, 255, 255), padding_mode='constant')  # Pad to 700x700 with white background if necessary
 ])
 
@@ -154,10 +154,10 @@ class ExcelImageDataset(Dataset):
 
 # Define the root directories
 root_dirs = [
-    os.path.join(os.getcwd(), '/root/stanfordData4321/stanfordData4321/standardized_images/images1'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images2'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images3'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images4')
+    # os.path.join(os.getcwd(), '/root/stanfordData4321/standardized_images/images1'),
+    os.path.join('/root/stanfordData4321/standardized_images/images2'),
+    # os.path.join('/root/stanfordData4321/standardized_images/images3'),
+    # os.path.join('/root/stanfordData4321/standardized_images/images4')
 ]
 
 # Function to count images per label
@@ -189,8 +189,16 @@ def save_augmented_images_with_exact_cap(dataset, output_dir, target_count=1500)
         # Count the number of images already saved for this label
         current_count = len([f for f in os.listdir(label_dir) if f.endswith('.png')])
 
-        original_img_path = os.path.join(label_dir, f"{idx}_original.png")
-        save_image(img, original_img_path)
+        pil_img = transforms.ToPILImage()(img)
+        augmented_img = augmentation_transforms(pil_img)  # Apply augmentation
+        augmented_img = transform(augmented_img)
+        augmented_img_path = os.path.join(label_dir, f"{idx}_aug_{current_count}.png")
+        save_image(augmented_img, augmented_img_path)
+
+
+        #normal imaging
+        # original_img_path = os.path.join(label_dir, f"{idx}_original.png")
+        # save_image(img, original_img_path)
 
         # # If the current count is already at or above the target, skip further augmentation
         # if current_count >= target_count:
