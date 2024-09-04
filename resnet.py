@@ -91,9 +91,12 @@ class AugmentedImageDataset(Dataset):
         self.augmented_dir = augmented_dir
         self.transform = transform
         self.augmented_paths = self._get_augmented_paths()
-        
-        # Create a label map based on the original dataset
-        self.label_map = original_dataset.label_map
+
+        # Assume the original dataset has a 'label_map' attribute
+        if hasattr(original_dataset, 'label_map'):
+            self.label_map = original_dataset.label_map
+        else:
+            raise AttributeError("Original dataset must have a 'label_map' attribute.")
 
     def _get_augmented_paths(self):
         augmented_paths = []
