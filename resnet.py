@@ -113,7 +113,7 @@ class AugmentedImageDataset(Dataset):
         return image, torch.tensor(label, dtype=torch.long)
 
 # Create the combined dataset using augmented images
-augmented_dataset = AugmentedImageDataset(dataset, './augmented_images2', transform)
+augmented_dataset = AugmentedImageDataset(dataset, './augmented_images1', transform)
 print(f"Total images in augmented dataset: {len(augmented_dataset)}")
 
 # Split dataset
