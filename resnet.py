@@ -91,6 +91,7 @@ class AugmentedImageDataset(Dataset):
         self.augmented_dir = augmented_dir
         self.transform = transform
         self.augmented_paths = self._get_augmented_paths()
+        print(f"Found {len(self.augmented_paths)} augmented images.")  # Debugging statement
 
     def _get_augmented_paths(self):
         augmented_paths = []
@@ -101,6 +102,7 @@ class AugmentedImageDataset(Dataset):
                     if file.endswith(".png") and "_aug_" in file:
                         img_path = os.path.join(root, file)
                         augmented_paths.append((img_path, label))
+        print(f"Augmented paths: {augmented_paths}")  # Debugging statement
         return augmented_paths
 
     def __len__(self):
