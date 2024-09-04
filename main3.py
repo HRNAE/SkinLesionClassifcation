@@ -59,7 +59,7 @@ augmentation_transforms = transforms.Compose([
 # Convert image to tensor and normalize (this should be done separately)
 to_tensor_and_normalize = transforms.Compose([
     transforms.ToTensor(),  # Convert to tensor
-    transforms.Normalize((0.5,), (0.5,))  # Normalize
+   transforms.Normalize((0.5,0.5,0.5),(0.5,0.5,0.5))
 ])
 
 # Function to save augmented images with correct dimensions
