@@ -86,31 +86,55 @@ dataset = ExcelImageDataset('./dataRef/release_midas.xlsx', root_dirs, transform
 
 # Function to count images per label in augmented dataset
 class AugmentedImageDataset(Dataset):
-    def __init__(self, original_dataset, augmented_dir, transform=None):
+    def __init__(self, original_dataset, augmented_root, transform=None):
         self.original_dataset = original_dataset
-        self.augmented_dir = augmented_dir
+        self.augmented_root = augmented_root
         self.transform = transform
+        self.label_map = self._get_label_map()
         self.augmented_paths = self._get_augmented_paths()
 
+    def _get_label_map(self):
+        label_map = {}
+        for idx in range(len(self.original_dataset)):
+            _, label = self.original_dataset[idx]
+            if idx not in label_map:
+                label_map[idx] = label.item()
+        return label_map
+
     def _get_augmented_paths(self):
-        augmented_paths = []
-        for root, _, files in os.walk(self.augmented_dir):
-            for file in files:
-                if file.endswith(".png"):
-                    img_path = os.path.join(root, file)
-                    label = int(os.path.basename(root))
-                    augmented_paths.append((img_path, label))
+        augmented_paths = {}
+        for idx in range(len(self.original_dataset)):
+            label = self.label_map[idx]
+            label_dir = os.path.join(self.augmented_root, str(label))
+            if os.path.exists(label_dir):
+                # Get all augmented images for this label
+                augmented_images = [f for f in os.listdir(label_dir) if f.endswith('.png') and f.startswith(f"{idx}_aug_")]
+                augmented_images.sort()  # Sort to maintain a consistent order
+                augmented_paths[idx] = [os.path.join(label_dir, img) for img in augmented_images]
+            else:
+                augmented_paths[idx] = []
         return augmented_paths
 
     def __len__(self):
-        return len(self.augmented_paths)
+        return len(self.original_dataset)
 
     def __getitem__(self, idx):
-        img_path, label = self.augmented_paths[idx]
-        image = Image.open(img_path).convert("RGB")
+        original_img, label = self.original_dataset[idx]
+        augmented_imgs = self.augmented_paths[idx]
+
+        # Include the original image in the options
+        if augmented_imgs:
+            imgs = [original_img] + [Image.open(p).convert('RGB') for p in augmented_imgs]
+        else:
+            imgs = [original_img]
+
+        # Randomly select an image (either original or one of the augmentations)
+        img = imgs[0]  # Replace with random.choice(imgs) if randomness is desired
+
         if self.transform:
-            image = self.transform(image)
-        return image, torch.tensor(label, dtype=torch.long)
+            img = self.transform(img)
+
+        return img, label
 
 # Create the combined dataset using augmented images
 augmented_dataset = AugmentedImageDataset(dataset, './augmented_images1', transform)
