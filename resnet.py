@@ -90,12 +90,6 @@ class AugmentedImageDataset(Dataset):
         self.original_dataset = original_dataset
         self.augmented_dir = augmented_dir
         self.transform = transform
-
-        # Ensure the label_map is retrieved from the original dataset
-        self.label_map = getattr(original_dataset, 'label_map', None)
-        if self.label_map is None:
-            raise AttributeError("Original dataset must have a 'label_map' attribute.")
-
         self.augmented_paths = self._get_augmented_paths()
 
     def _get_augmented_paths(self):
@@ -103,16 +97,9 @@ class AugmentedImageDataset(Dataset):
         for root, _, files in os.walk(self.augmented_dir):
             for file in files:
                 if file.endswith(".png"):
-                    # Extract label from the directory name
-                    try:
-                        label = int(os.path.basename(root))
-                        if label not in self.label_map.values():
-                            continue  # Skip if label is not in the original dataset
-                        img_path = os.path.join(root, file)
-                        augmented_paths.append((img_path, label))
-                    except ValueError:
-                        print(f"Warning: Label extracted from directory name '{root}' is invalid.")
-        print(f"Total augmented image paths found: {len(augmented_paths)}")
+                    img_path = os.path.join(root, file)
+                    label = int(os.path.basename(root))
+                    augmented_paths.append((img_path, label))
         return augmented_paths
 
     def __len__(self):
