@@ -111,16 +111,6 @@ class AugmentedImageDataset(Dataset):
         if self.transform:
             image = self.transform(image)
         return image, torch.tensor(label, dtype=torch.long)
-    def __len__(self):
-        return len(self.augmented_paths)
-
-    def __getitem__(self, idx):
-        img_path, label = self.augmented_paths[idx]
-        image = Image.open(img_path).convert("RGB")
-        if self.transform:
-            image = self.transform(image)
-        label_idx = self.original_dataset.label_map.get(label, -1)  # Map the label to its index
-        return image, torch.tensor(label_idx, dtype=torch.long)
 
 
 # Create the combined dataset using augmented images
