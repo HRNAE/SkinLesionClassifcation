@@ -46,7 +46,7 @@ transform = transforms.Compose([
 
 # Define the augmentation and processing pipeline
 augmentation_transforms = transforms.Compose([
-    transforms.RandomRotation(degrees=90, expand=False, fill=(255, 255, 255)),  # Rotate the image without expanding
+    transforms.RandomRotation(degrees=90, expand=False),  # Rotate the image without expanding
     transforms.Resize((224, 224)),  # Ensure consistency in size after rotation
     transforms.Pad(padding=(0, 0, 0, 0), fill=(255, 255, 255), padding_mode='constant')  # Pad to 700x700 with white background if necessary
 ])
