@@ -91,20 +91,26 @@ class AugmentedImageDataset(Dataset):
         self.augmented_dir = augmented_dir
         self.transform = transform
         self.augmented_paths = self._get_augmented_paths()
-        print(f"Found {len(self.augmented_paths)} augmented images.")  # Debugging statement
 
     def _get_augmented_paths(self):
         augmented_paths = []
         for root, _, files in os.walk(self.augmented_dir):
-            label = os.path.basename(root)  # Assuming directory name is the label
-            if label in self.original_dataset.label_map:  # Check if the label is valid
-                for file in files:
-                    if file.endswith(".png") and "_aug_" in file:
-                        img_path = os.path.join(root, file)
-                        augmented_paths.append((img_path, label))
-        print(f"Augmented paths: {augmented_paths}")  # Debugging statement
+            for file in files:
+                if file.endswith(".png"):
+                    img_path = os.path.join(root, file)
+                    label = int(os.path.basename(root))
+                    augmented_paths.append((img_path, label))
         return augmented_paths
 
+    def __len__(self):
+        return len(self.augmented_paths)
+
+    def __getitem__(self, idx):
+        img_path, label = self.augmented_paths[idx]
+        image = Image.open(img_path).convert("RGB")
+        if self.transform:
+            image = self.transform(image)
+        return image, torch.tensor(label, dtype=torch.long)
     def __len__(self):
         return len(self.augmented_paths)
 
