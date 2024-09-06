@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-input_folders = ['images1, images2, images3, images4']  
+input_folders = ['images1', 'images2', 'images3', 'images4']  
 output_base_folder = 'standardized_images'
 os.makedirs(output_base_folder, exist_ok=True)
 
@@ -26,7 +26,7 @@ def standardize_image_with_padding(image_path, output_path, size):
     resized_image = cv2.resize(image, (new_w, new_h))
 
     # Create a new image with the target size and pad the resized image into the center
-    pad_image = np.ones((size[0], size[1], 3), dtype=np.uint8)
+    pad_image = np.ones((size[0], size[1], 3), dtype=np.uint8) * 255
     pad_image[(size[0] - new_h) // 2:(size[0] - new_h) // 2 + new_h,
               (size[1] - new_w) // 2:(size[1] - new_w) // 2 + new_w, :] = resized_image
 
