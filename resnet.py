@@ -13,7 +13,6 @@ from collections import Counter
 import cv2
 import optuna
 
-
 # Define categories and image size
 categories = ['7-malignant-bcc', '1-benign-melanocytic nevus', '6-benign-other',
               '14-other-non-neoplastic/inflammatory/infectious', '8-malignant-scc',
@@ -29,6 +28,7 @@ transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
+# Dataset class to load original images from the Excel file
 class ExcelImageDataset(Dataset):
     def __init__(self, excel_file, root_dirs, transform=None):
         self.data_frame = pd.read_excel(excel_file)
@@ -68,47 +68,23 @@ class ExcelImageDataset(Dataset):
         label = torch.tensor(self.label_map.get(label, -1), dtype=torch.long)
         return image, label
 
-# Define the root directories
-root_dirs = [
-    os.path.join(os.getcwd(), '/root/stanfordData4321/stanfordData4321/standardized_images/images1'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images2'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images3'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images4')
-]
-
-# Function to count images per label
-def count_images_per_label(dataset):
-    label_counts = Counter(label.item() for _, label in dataset)
-    return {categories[label]: count for label, count in label_counts.items()}
-
-# Load dataset
-dataset = ExcelImageDataset('./dataRef/release_midas.xlsx', root_dirs, transform)
-
-# Function to count images per label in augmented dataset
-
+# Dataset class to load augmented images from the directory
 class AugmentedImageDataset(Dataset):
     def __init__(self, original_dataset, augmented_dir, transform=None):
         self.original_dataset = original_dataset
         self.augmented_dir = augmented_dir
         self.transform = transform
         self.augmented_paths = self._get_augmented_paths()
-        
-        # Print the number of images found for debugging purposes
         print(f"Found {len(self.augmented_paths)} augmented images.")
 
     def _get_augmented_paths(self):
         augmented_paths = []
         for root, _, files in os.walk(self.augmented_dir):
-            # Debug: Print the directory being traversed
-            print(f"Traversing directory: {root}")
             for file in files:
                 if file.endswith(".png"):  # Ensure we're only working with .png files
                     img_path = os.path.join(root, file)
-                    # Extract the label from the directory name (assumes labels are folder names)
-                    label = int(os.path.basename(root))
+                    label = os.path.basename(root)  # Extract label from folder name
                     augmented_paths.append((img_path, label))
-                    # Debug: Print each image path and label found
-                    print(f"Found image: {img_path} with label: {label}")
         return augmented_paths
 
     def __len__(self):
@@ -119,23 +95,50 @@ class AugmentedImageDataset(Dataset):
         image = Image.open(img_path).convert("RGB")
         if self.transform:
             image = self.transform(image)
-        return image, torch.tensor(label, dtype=torch.long)
+        return image, torch.tensor(self.original_dataset.label_map.get(label, -1), dtype=torch.long)
 
-# Create the combined dataset using augmented images
+# Define the root directories for original images
+root_dirs = [
+    os.path.join(os.getcwd(), '/root/stanfordData4321/stanfordData4321/standardized_images/images1'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images2'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images3'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images4')
+]
+
+# Load original dataset
+dataset = ExcelImageDataset('./dataRef/release_midas.xlsx', root_dirs, transform)
+
+# Load augmented dataset
 augmented_dataset = AugmentedImageDataset(dataset, './augmented_images2', transform)
-print(f"Total images in augmented dataset: {len(augmented_dataset)}")
 
-# Split dataset
-train_size = int(0.8 * len(augmented_dataset))
-test_size = len(augmented_dataset) - train_size
-train_dataset, test_dataset = random_split(augmented_dataset, [train_size, test_size])
+# Combined dataset
+class CombinedDataset(Dataset):
+    def __init__(self, original_dataset, augmented_dataset):
+        self.original_dataset = original_dataset
+        self.augmented_dataset = augmented_dataset
 
-print(f"Train dataset length: {len(train_dataset)}, Test dataset length: {len(test_dataset)}")
+    def __len__(self):
+        return len(self.original_dataset) + len(self.augmented_dataset)
+
+    def __getitem__(self, idx):
+        if idx < len(self.original_dataset):
+            return self.original_dataset[idx]
+        else:
+            return self.augmented_dataset[idx - len(self.original_dataset)]
+
+# Create the combined dataset
+combined_dataset = CombinedDataset(dataset, augmented_dataset)
+print(f"Total images in combined dataset: {len(combined_dataset)}")
+
+# Split dataset into training and testing sets
+train_size = int(0.8 * len(combined_dataset))
+test_size = len(combined_dataset) - train_size
+train_dataset, test_dataset = random_split(combined_dataset, [train_size, test_size])
 
 train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False)
 
-# Load pre-trained model and modify the final layer
+# Load pre-trained ResNet50 model and modify the final layer
 weights = models.ResNet50_Weights.DEFAULT
 net = models.resnet50(weights=weights)
 num_ftrs = net.fc.in_features
@@ -144,7 +147,7 @@ net.fc = nn.Linear(num_ftrs, len(categories))
 # Move the model to GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 net.to(device)
-print(device)
+print(f"Using device: {device}")
 
 # Optuna optimization
 def objective(trial):
@@ -191,8 +194,6 @@ print("Best parameters found by Optuna:", best_params)
 best_lr = best_params['lr']
 best_momentum = best_params['momentum']
 optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
-
-# Define loss function and optimizer
 criterion = nn.CrossEntropyLoss()
 
 for epoch in range(10):  # Adjust epoch count as needed
@@ -230,80 +231,32 @@ with torch.no_grad():
 
 print(f'Accuracy on the test dataset: {100 * correct / total:.2f}%')
 
-import numpy as np
-import torch
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import cv2
-from PIL import Image
-
-def occlusion_sensitivity(model, image_tensor, patch_size=15, stride=5):
-    model.eval()
-    c, h, w = image_tensor.size()
-    sensitivity_map = torch.zeros(h, w)
-
-    # Get the model's original prediction confidence
-    original_output = model(image_tensor.unsqueeze(0))
-    original_confidence = torch.nn.functional.softmax(original_output, dim=1)
-    original_score = original_confidence.max().item()
-
-    for i in range(0, w, stride):
-        for j in range(0, h, stride):
-            occluded_image = image_tensor.clone()
-            occluded_image[:, j:j+patch_size, i:i+patch_size] = 0  # Occlude a patch
-
-            # Get the model's prediction for the occluded image
-            output = model(occluded_image.unsqueeze(0))
-            confidence = torch.nn.functional.softmax(output, dim=1)
-            score = confidence.max().item()
-
-            # Update the sensitivity map with the change in confidence
-            sensitivity_map[j:j+patch_size, i:i+patch_size] = original_score - score
-
-    sensitivity_map = sensitivity_map / sensitivity_map.max()  # Normalize the sensitivity map
-
-    # Apply Gaussian smoothing
-    sensitivity_map = cv2.GaussianBlur(sensitivity_map.numpy(), (11, 11), 0)
-    sensitivity_map = torch.from_numpy(sensitivity_map)
+# Occlusion sensitivity and visualization
+def occlusion_sensitivity(model, image_tensor, patch_size=15, stride=15):
+    _, _, H, W = image_tensor.shape
+    sensitivity_map = torch.zeros(H, W).to(image_tensor.device)
+    
+    with torch.no_grad():
+        baseline_output = model(image_tensor)
+        pred_label = torch.argmax(baseline_output, dim=1)
+        
+        for h in range(0, H - patch_size, stride):
+            for w in range(0, W - patch_size, stride):
+                occluded_image = image_tensor.clone()
+                occluded_image[:, :, h:h+patch_size, w:w+patch_size] = 0
+                output = model(occluded_image)
+                occlusion_score = output[0, pred_label]
+                sensitivity_map[h:h+patch_size, w:w+patch_size] = occlusion_score
 
     return sensitivity_map
 
-def visualize_occlusion_sensitivity(image_path, sensitivity_map, output_path=None):
-    image = cv2.imread(image_path)
-    sensitivity_map = sensitivity_map.numpy()
+# Test on a single image
+test_image, label = test_dataset[0]
+test_image = test_image.unsqueeze(0).to(device)
+sensitivity_map = occlusion_sensitivity(net, test_image)
+sensitivity_map = sensitivity_map.cpu().numpy()
 
-    # Resize sensitivity map to match the original image size
-    sensitivity_map_resized = cv2.resize(sensitivity_map, (image.shape[1], image.shape[0]))
-
-    # Apply a colormap to the sensitivity map
-    colormap = cm.jet(sensitivity_map_resized)[:, :, :3]  # Use the 'jet' colormap and discard the alpha channel
-
-    # Convert to uint8 for blending
-    colormap_uint8 = np.uint8(255 * colormap)
-
-    # Blend the original image with the colormap
-    overlay = cv2.addWeighted(image, 0.6, colormap_uint8, 0.4, 0)
-
-    if output_path:
-        cv2.imwrite(output_path, overlay)
-        print(f"Overlay saved to {output_path}")
-
-    plt.imshow(overlay)
-    plt.axis('off')
-    plt.show()
-
-# Load and preprocess the image
-image_path = '/root/stanfordData4321/stanfordData4321/images4/s-prd-784541963.jpg'
-image = Image.open(image_path).convert("RGB")
-image_tensor = transform(image).to(device)  # Apply transformations and move to device
-
-# Generate the occlusion sensitivity map
-sensitivity_map = occlusion_sensitivity(
-    net,
-    image_tensor,
-    patch_size=15,  # Smaller patch size for finer granularity
-    stride=5       # Smaller stride for smoother transitions
-)
-
-# Visualize the occlusion sensitivity map overlaid on the original image
-visualize_occlusion_sensitivity(image_path, sensitivity_map, output_path='./occlusion_sensitivity_overlay.png')
+# Plot the sensitivity map
+plt.imshow(sensitivity_map, cmap='hot', interpolation='nearest')
+plt.colorbar()
+plt.show()
