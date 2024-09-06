@@ -92,15 +92,23 @@ class AugmentedImageDataset(Dataset):
         self.augmented_dir = augmented_dir
         self.transform = transform
         self.augmented_paths = self._get_augmented_paths()
+        
+        # Print the number of images found for debugging purposes
+        print(f"Found {len(self.augmented_paths)} augmented images.")
 
     def _get_augmented_paths(self):
         augmented_paths = []
         for root, _, files in os.walk(self.augmented_dir):
+            # Debug: Print the directory being traversed
+            print(f"Traversing directory: {root}")
             for file in files:
-                if file.endswith(".png"):
+                if file.endswith(".png"):  # Ensure we're only working with .png files
                     img_path = os.path.join(root, file)
-                    label = int(os.path.basename(root))  # Extract label from directory name
+                    # Extract the label from the directory name (assumes labels are folder names)
+                    label = int(os.path.basename(root))
                     augmented_paths.append((img_path, label))
+                    # Debug: Print each image path and label found
+                    print(f"Found image: {img_path} with label: {label}")
         return augmented_paths
 
     def __len__(self):
