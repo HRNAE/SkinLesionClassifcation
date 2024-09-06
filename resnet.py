@@ -75,15 +75,14 @@ class AugmentedImageDataset(Dataset):
         self.augmented_dir = augmented_dir
         self.transform = transform
         self.augmented_paths = self._get_augmented_paths()
-        print(f"Found {len(self.augmented_paths)} augmented images.")
 
     def _get_augmented_paths(self):
         augmented_paths = []
         for root, _, files in os.walk(self.augmented_dir):
             for file in files:
-                if file.endswith(".png"):  # Ensure we're only working with .png files
+                if file.endswith(".png"):
                     img_path = os.path.join(root, file)
-                    label = os.path.basename(root)  # Extract label from folder name
+                    label = int(os.path.basename(root))
                     augmented_paths.append((img_path, label))
         return augmented_paths
 
@@ -95,7 +94,7 @@ class AugmentedImageDataset(Dataset):
         image = Image.open(img_path).convert("RGB")
         if self.transform:
             image = self.transform(image)
-        return image, torch.tensor(self.original_dataset.label_map.get(label, -1), dtype=torch.long)
+        return image, torch.tensor(label, dtype=torch.long)
 
 # Define the root directories for original images
 root_dirs = [
