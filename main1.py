@@ -177,71 +177,45 @@ for label, count in pre_augmentation_counts.items():
 def save_augmented_images_with_exact_cap(dataset, output_dir, target_count=4):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+
     
-    label_counts = Counter(label.item() for _, label in dataset)
-    
+    label_to_images = {}
     for idx in range(len(dataset)):
         img, label = dataset[idx]
-        label_dir = os.path.join(output_dir, str(label.item()))
+        label = label.item()
+        if label not in label_to_images:
+            label_to_images[label] = []
+        label_to_images[label].append((img, idx))
+
+    # For each label, save images until the folder has 1500 images
+    for label, images in label_to_images.items():
+        label_dir = os.path.join(output_dir, str(label))
+
         if not os.path.exists(label_dir):
             os.makedirs(label_dir)
+
         # Count the number of images already saved for this label
         current_count = len([f for f in os.listdir(label_dir) if f.endswith('.png')])
 
-        pil_img = transforms.ToPILImage()(img)
-        
-        augmented_img = augmentation_transforms(pil_img)  # Apply augmentation
-        augmented_img = transform(augmented_img)  # Convert to tensor and normalize
-        augmented_img_path = os.path.join(label_dir, f"{idx}_aug_{current_count}.png")
-        save_image(augmented_img, augmented_img_path)
+        # First, save all the original images
+        while current_count < target_count:
+            for img, idx in images:
+                # Stop if we've already hit the target count
+                if current_count >= target_count:
+                    break
 
-        current_count = len([f for f in os.listdir(label_dir) if f.endswith('.png')])
-        augmented_img = augmentation_transforms(pil_img)  # Apply augmentation
-        augmented_img = transform(augmented_img)  # Convert to tensor and normalize
-        augmented_img_path = os.path.join(label_dir, f"{idx}_aug_{current_count}.png")
-        save_image(augmented_img, augmented_img_path)
+                pil_img = transforms.ToPILImage()(img)
+                
+                
+                augmented_img = augmentation_transforms(pil_img) if current_count >= len(images) else pil_img
+                augmented_img_tensor = transform(augmented_img)  # Convert back to tensor
 
-        current_count = len([f for f in os.listdir(label_dir) if f.endswith('.png')])
-        augmented_img = augmentation_transforms(pil_img)  # Apply augmentation
-        augmented_img = transform(augmented_img)  # Convert to tensor and normalize
-        augmented_img_path = os.path.join(label_dir, f"{idx}_aug_{current_count}.png")
-        save_image(augmented_img, augmented_img_path)
+                # Save 
+                augmented_img_path = os.path.join(label_dir, f"{idx}_aug_{current_count}.png")
+                save_image(augmented_img_tensor, augmented_img_path)
+                
+                current_count += 1
 
-        current_count = len([f for f in os.listdir(label_dir) if f.endswith('.png')])
-        augmented_img = augmentation_transforms(pil_img)  # Apply augmentation
-        augmented_img = transform(augmented_img)  # Convert to tensor and normalize
-        augmented_img_path = os.path.join(label_dir, f"{idx}_aug_{current_count}.png")
-        save_image(augmented_img, augmented_img_path)
-
-        current_count = len([f for f in os.listdir(label_dir) if f.endswith('.png')])
-        augmented_img = augmentation_transforms(pil_img)  # Apply augmentation
-        augmented_img = transform(augmented_img)  # Convert to tensor and normalize
-        augmented_img_path = os.path.join(label_dir, f"{idx}_aug_{current_count}.png")
-        save_image(augmented_img, augmented_img_path)
-
-        # # If the current count is already at or above the target, skip further augmentation
-        # if current_count >= target_count:
-        #     continue
-        
-        # iteration = 0
-        # # Generate and save augmented images until the count reaches the target
-        # pil_img = transforms.ToPILImage()(img)  # Convert tensor to PIL Image
-        # while iteration < target_count:
-        #     augmented_img = augmentation_transforms(pil_img)  # Apply augmentation
-        #     augmented_img = transform(augmented_img)  # Convert to tensor and normalize
-        #     augmented_img_path = os.path.join(label_dir, f"{idx}_aug_{current_count}.png")
-        #     save_image(augmented_img, augmented_img_path)
-        #     iteration += 1
-    
-    # Cap all labels at target_count by randomly selecting 1500 images if a label has more
-    # for label in os.listdir(output_dir):
-    #     label_dir = os.path.join(output_dir, label)
-    #     images = [f for f in os.listdir(label_dir) if f.endswith('.png')]
-    #     if len(images) > target_count:
-    #         images_to_keep = random.sample(images, target_count)
-    #         images_to_remove = set(images) - set(images_to_keep)
-    #         for img in images_to_remove:
-    #             os.remove(os.path.join(label_dir, img))
 
 # Create dataset and save augmented images
 output_dir = './augmented_images2'
