@@ -85,6 +85,7 @@ def count_images_per_label(dataset):
 dataset = ExcelImageDataset('./dataRef/release_midas.xlsx', root_dirs, transform)
 
 # Function to count images per label in augmented dataset
+
 class AugmentedImageDataset(Dataset):
     def __init__(self, original_dataset, augmented_dir, transform=None):
         self.original_dataset = original_dataset
@@ -98,7 +99,7 @@ class AugmentedImageDataset(Dataset):
             for file in files:
                 if file.endswith(".png"):
                     img_path = os.path.join(root, file)
-                    label = int(os.path.basename(root))
+                    label = int(os.path.basename(root))  # Extract label from directory name
                     augmented_paths.append((img_path, label))
         return augmented_paths
 
@@ -111,7 +112,6 @@ class AugmentedImageDataset(Dataset):
         if self.transform:
             image = self.transform(image)
         return image, torch.tensor(label, dtype=torch.long)
-
 
 # Create the combined dataset using augmented images
 augmented_dataset = AugmentedImageDataset(dataset, './augmented_images2', transform)
