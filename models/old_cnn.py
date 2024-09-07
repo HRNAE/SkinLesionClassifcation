@@ -98,10 +98,10 @@ class ExcelImageDataset(Dataset):
 
 # Define the root directories
 root_dirs = [
-    '/root/stanfordData4321/images2',
-    '/root/stanfordData4321/images1',
-    '/root/stanfordData4321/images3',
-    '/root/stanfordData4321/images4'
+    os.path.join(os.getcwd(), '/root/stanfordData4321/stanfordData4321/standardized_images/images1'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images2'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images3'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images4')
 ]
 
 # Save augmented images
@@ -138,7 +138,7 @@ def save_augmented_images(dataset, output_dir, num_augmentations=5):
 dataset = ExcelImageDataset(excel_file_path, root_dirs, transform)
 logging.info("Dataset length before augmentation: %d", len(dataset))
 
-output_dir = './augmented_images'
+output_dir = './augmented_images2'
 save_augmented_images(dataset, output_dir, num_augmentations=5)
 
 # Define the combined dataset class
