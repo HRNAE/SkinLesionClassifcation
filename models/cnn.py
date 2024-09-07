@@ -224,7 +224,7 @@ def train_model(model, train_loader, criterion, optimizer, num_epochs=25):
         logging.info("Epoch [%d/%d], Loss: %.4f", epoch+1, num_epochs, running_loss/len(train_loader))
 
 logging.info("Starting training...")
-train_model(model, train_loader, criterion, optimizer, num_epochs=25)
+train_model(model, train_loader, criterion, optimizer, num_epochs=35)
 
 # Test the model
 def test_model(model, test_loader):
