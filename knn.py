@@ -2,7 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.amp import GradScaler, autocast
+from torch.cuda.amp import GradScaler, autocast
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, Dataset
 from torchvision.utils import save_image
