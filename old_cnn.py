@@ -11,6 +11,8 @@ from PIL import Image
 import pandas as pd
 import logging
 import optuna
+import numpy as np
+import matplotlib.pyplot as plt
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -214,70 +216,89 @@ class CustomModel(nn.Module):
         x = self.fc3(x)
         return x
 
-# Define the objective function for Optuna
-def objective(trial):
-    # Hyperparameters to tune
-    lr = trial.suggest_loguniform('lr', 1e-5, 1e-1)
-    batch_size = trial.suggest_categorical('batch_size', [8, 16, 32])
+# Create model instance, loss function, and optimizer
+model = CustomModel().to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-    # Create data loaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+# Set up data loaders
+batch_size = 16
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
-    # Initialize the model, loss function, and optimizer
-    model = CustomModel().to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=lr)
-
-    best_accuracy = 0.0
-    scaler = GradScaler()  # Initialize the gradient scaler for mixed precision
-
-    # Training loop
-    for epoch in range(5):  # Set epochs to 5
-        model.train()
+# Train the model
+def train_model(model, train_loader, criterion, optimizer, num_epochs=25):
+    model.train()
+    for epoch in range(num_epochs):
         running_loss = 0.0
-        for inputs, labels in train_loader:
-            inputs, labels = inputs.to(device), labels.to(device)
-            
+        for i, (images, labels) in enumerate(train_loader):
+            images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
-
-            with autocast():  # Automatic Mixed Precision context
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-            
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
             running_loss += loss.item()
+        logging.info("Epoch [%d/%d], Loss: %.4f", epoch+1, num_epochs, running_loss/len(train_loader))
 
-        # Testing loop
-        model.eval()
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for inputs, labels in test_loader:
-                inputs, labels = inputs.to(device), labels.to(device)
-                outputs = model(inputs)
-                _, predicted = torch.max(outputs, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+logging.info("Starting training...")
+train_model(model, train_loader, criterion, optimizer, num_epochs=25)
 
-        accuracy = correct / total
-        logging.info("Epoch [%d], Loss: %.4f, Accuracy: %.4f", epoch + 1, running_loss / len(train_loader), accuracy)
+# Test the model
+def test_model(model, test_loader):
+    model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for images, labels in test_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    logging.info('Test Accuracy: %.2f %%', 100 * correct / total)
 
-        # Save the model if it has the best accuracy
-        if accuracy > best_accuracy:
-            best_accuracy = accuracy
-            torch.save(model.state_dict(), './best_model.pth')
-            logging.info("Best model saved with accuracy: %.4f", best_accuracy)
+logging.info("Starting testing...")
+test_model(model, test_loader)
 
-    return best_accuracy
+# Occlusion Sensitivity Helper Functions
+def compute_occlusion_sensitivity(model, image, label, occlusion_size=16, occlusion_stride=8):
+    model.eval()  # Set the model to evaluation mode
+    image = image.unsqueeze(0)
+    with torch.no_grad():
+        original_output = model(image.to(device))
+        original_score = F.softmax(original_output, dim=1)[0, label].item()
 
-# Run Optuna
-study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=5)
+    sensitivity_map = np.zeros((image.size(2), image.size(3)))
 
-logging.info("Best trial: %s", study.best_trial)
+    for y in range(0, image.size(2), occlusion_stride):
+        for x in range(0, image.size(3), occlusion_stride):
+            occluded_image = image.clone()
+            occluded_image[:, :, y:y+occlusion_size, x:x+occlusion_size] = 0.0
+            with torch.no_grad():
+                output = model(occluded_image.to(device))
+                score = F.softmax(output, dim=1)[0, label].item()
+            sensitivity_map[y:y+occlusion_size, x:x+occlusion_size] = original_score - score
 
-# After trials, the best model is saved as 'best_model.pth'.
+    return sensitivity_map
+
+def plot_occlusion_sensitivity(sensitivity_map, original_image, save_path=None):
+    original_image_np = np.transpose(original_image.numpy(), (1, 2, 0))
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.imshow((original_image_np * 0.5) + 0.5)
+    plt.title('Original Image')
+    plt.subplot(1, 2, 2)
+    plt.imshow(sensitivity_map, cmap='hot', interpolation='nearest')
+    plt.colorbar()
+    plt.title('Occlusion Sensitivity')
+    if save_path:
+        plt.savefig(save_path)
+    plt.show()
+
+# Pick an image from the test dataset and compute occlusion sensitivity
+test_img, test_label = test_dataset[0]
+test_img = test_img.to(device)
+test_label = test_label.to(device)
+sensitivity_map = compute_occlusion_sensitivity(model, test_img, test_label.item(), occlusion_size=16, occlusion_stride=8)
+plot_occlusion_sensitivity(sensitivity_map, test_img.cpu(), save_path='./occlusion_sensitivity.png')
