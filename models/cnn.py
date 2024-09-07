@@ -47,14 +47,14 @@ transform = transforms.Compose([
     transforms.Normalize((0.5,), (0.5,))
 ])
 
-# Define the augmentation pipeline
-augmentation_transforms = transforms.Compose([
-    transforms.RandomResizedCrop(img_size),
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomVerticalFlip(),
-    transforms.RandomRotation(10),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2)
-])
+# # Define the augmentation pipeline
+# augmentation_transforms = transforms.Compose([
+#     transforms.RandomResizedCrop(img_size),
+#     transforms.RandomHorizontalFlip(),
+#     transforms.RandomVerticalFlip(),
+#     transforms.RandomRotation(10),
+#     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2)
+# ])
 
 class ExcelImageDataset(Dataset):
     def __init__(self, excel_file, root_dirs, transform=None):
@@ -96,52 +96,7 @@ class ExcelImageDataset(Dataset):
         label = torch.tensor(self.label_map.get(label, -1), dtype=torch.long)
         return image, label
 
-# Define the root directories
-root_dirs = [
-    os.path.join(os.getcwd(), '/root/stanfordData4321/stanfordData4321/standardized_images/images1'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images2'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images3'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images4')
-]
-
-# Save augmented images
-def save_augmented_images(dataset, output_dir, num_augmentations=5):
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    
-    total_images = len(dataset)
-    interval = max(total_images // 10, 1)
-
-    logging.info("Starting to save augmented images...")
-    for idx in range(total_images):
-        if idx % interval == 0:
-            logging.info("Processing image %d/%d", idx, total_images)
-        
-        img, label = dataset[idx]
-        label_dir = os.path.join(output_dir, str(label.item()))
-        if not os.path.exists(label_dir):
-            os.makedirs(label_dir)
-        
-        original_img_path = os.path.join(label_dir, f"{idx}_original.png")
-        save_image(img, original_img_path)
-        
-        pil_img = transforms.ToPILImage()(img)
-        for aug_idx in range(num_augmentations):
-            augmented_img = augmentation_transforms(pil_img)
-            augmented_img = transform(augmented_img)
-            augmented_img_path = os.path.join(label_dir, f"{idx}_aug_{aug_idx}.png")
-            save_image(augmented_img, augmented_img_path)
-    
-    logging.info("Finished saving augmented images.")
-
-# Create dataset and save augmented images
-dataset = ExcelImageDataset(excel_file_path, root_dirs, transform)
-logging.info("Dataset length before augmentation: %d", len(dataset))
-
-output_dir = './augmented_images2'
-save_augmented_images(dataset, output_dir, num_augmentations=5)
-
-# Define the combined dataset class
+# Dataset class to load augmented images from the directory
 class AugmentedImageDataset(Dataset):
     def __init__(self, original_dataset, augmented_dir, transform=None):
         self.original_dataset = original_dataset
@@ -160,22 +115,49 @@ class AugmentedImageDataset(Dataset):
         return augmented_paths
 
     def __len__(self):
-        return len(self.original_dataset) + len(self.augmented_paths)
+        return len(self.augmented_paths)
+
+    def __getitem__(self, idx):
+        img_path, label = self.augmented_paths[idx]
+        image = Image.open(img_path).convert("RGB")
+        if self.transform:
+            image = self.transform(image)
+        return image, torch.tensor(label, dtype=torch.long)
+
+# Define the root directories
+root_dirs = [
+    os.path.join(os.getcwd(), '/root/stanfordData4321/stanfordData4321/standardized_images/images1'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images2'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images3'),
+    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images4')
+]
+
+# Load original dataset
+logging.info("Creating combined dataset...")
+dataset = ExcelImageDataset(excel_file_path, root_dirs, transform)
+
+# Load augmented dataset
+augmented_dataset = AugmentedImageDataset(dataset, './augmented_images2', transform)
+
+
+# Combined dataset
+class CombinedDataset(Dataset):
+    def __init__(self, original_dataset, augmented_dataset):
+        self.original_dataset = original_dataset
+        self.augmented_dataset = augmented_dataset
+
+    def __len__(self):
+        return len(self.original_dataset) + len(self.augmented_dataset)
 
     def __getitem__(self, idx):
         if idx < len(self.original_dataset):
             return self.original_dataset[idx]
         else:
-            img_path, label = self.augmented_paths[idx - len(self.original_dataset)]
-            image = Image.open(img_path).convert("RGB")
-            if self.transform:
-                image = self.transform(image)
-            return image, torch.tensor(label, dtype=torch.long)
+            return self.augmented_dataset[idx - len(self.original_dataset)]
 
 # Create the combined dataset
-logging.info("Creating combined dataset...")
-augmented_dataset = AugmentedImageDataset(dataset, output_dir, transform)
-logging.info("Total images in augmented dataset: %d", len(augmented_dataset))
+combined_dataset = CombinedDataset(dataset, augmented_dataset)
+print(f"Total images in combined dataset: {len(combined_dataset)}")
 
 # Split dataset into training and testing subsets
 logging.info("Splitting dataset into training and testing subsets...")
