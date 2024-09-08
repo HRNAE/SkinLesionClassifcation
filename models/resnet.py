@@ -230,6 +230,83 @@ with torch.no_grad():
 
 print(f'Accuracy on the test dataset: {100 * correct / total:.2f}%')
 
+class ClusterImageDataset(torch.utils.data.Dataset):
+    def __init__(self, folder_path, transform=None):
+        self.folder_path = folder_path
+        self.transform = transform
+        self.image_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(('png', 'jpg', 'jpeg'))]
+        
+    def __len__(self):
+        return len(self.image_files)
+    
+    def __getitem__(self, idx):
+        img_path = self.image_files[idx]
+        image = Image.open(img_path)
+        if self.transform:
+            image = self.transform(image)
+        return image, img_path
+
+# Define the data transformation (same as for your model input)
+transform = transforms.Compose([
+    transforms.Resize((700, 700)),  # Assuming your input image size is 700x700
+    transforms.ToTensor(),
+])
+
+# Path to the Clusters directory
+clusters_path = '/path/to/Clusters'
+cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
+
+correct_predictions = {cluster: 0 for cluster in cluster_folders}
+total_images = {cluster: 0 for cluster in cluster_folders}
+
+# Iterate over each cluster folder
+for cluster in cluster_folders:
+    cluster_dataset = ClusterImageDataset(cluster, transform=transform)
+    cluster_loader = DataLoader(cluster_dataset, batch_size=1, shuffle=False)
+    
+    correct = 0
+    total = 0
+    image_count = 0
+    
+    for images, img_paths in cluster_loader:
+        images = images.to(device)
+        
+        # Model prediction
+        outputs = net(images)
+        _, predicted = torch.max(outputs, 1)
+        
+        # Assume you have ground truth labels in file names or separate source
+        true_label = get_label_from_path(img_paths[0])  # You will need to implement this function
+        total += 1
+        total_images[cluster] += 1
+        
+        if predicted.item() == true_label:
+            correct += 1
+            correct_predictions[cluster] += 1
+        
+        # Get sensitivity map for first 2 images in the cluster
+        if image_count < 2:
+            sensitivity_map = occlusion_sensitivity(net, images)
+            sensitivity_map = sensitivity_map.cpu().numpy()
+
+            # Plot the sensitivity map
+            plt.figure()
+            plt.imshow(sensitivity_map, cmap='hot', interpolation='nearest')
+            plt.title(f"Sensitivity Map for Image in {cluster} - {img_paths[0]}")
+            plt.colorbar()
+            plt.show()
+        
+        image_count += 1
+    
+    # Calculate accuracy for this cluster
+    accuracy = correct / total if total > 0 else 0
+    print(f"Accuracy for {cluster}: {accuracy * 100:.2f}%")
+
+# Print overall accuracy for each cluster
+for cluster in cluster_folders:
+    accuracy = correct_predictions[cluster] / total_images[cluster] if total_images[cluster] > 0 else 0
+    print(f"Cluster {cluster}: {accuracy * 100:.2f}% accuracy")
+
 # Occlusion sensitivity and visualization
 def occlusion_sensitivity(model, image_tensor, patch_size=15, stride=15):
     _, _, H, W = image_tensor.shape
