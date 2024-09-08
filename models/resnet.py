@@ -253,7 +253,7 @@ transform = transforms.Compose([
 ])
 
 # Path to the Clusters directory
-clusters_path = '/path/to/Clusters'
+clusters_path = '/root/stanfordData4321/stanfordData4321/clusters'
 cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
 
 correct_predictions = {cluster: 0 for cluster in cluster_folders}
