@@ -190,7 +190,7 @@ optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
 # Define loss function and optimizer
 criterion = nn.CrossEntropyLoss()
 
-for epoch in range(10):  # Adjust epoch count as needed
+for epoch in range(5):  # Adjust epoch count as needed
     net.train()
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
@@ -231,12 +231,19 @@ import matplotlib.cm as cm
 import cv2
 from PIL import Image
 
+import os
+from PIL import Image
+import torch
+from torch.utils.data import DataLoader
+from torchvision import transforms
+import matplotlib.pyplot as plt
 
+# Custom Dataset class for loading cluster images
 class ClusterImageDataset(torch.utils.data.Dataset):
     def __init__(self, folder_path, transform=None):
         self.folder_path = folder_path
         self.transform = transform
-        self.image_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(('png', 'jpg', 'jpeg'))]
+        self.image_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith('.png')]
         
     def __len__(self):
         return len(self.image_files)
@@ -248,21 +255,32 @@ class ClusterImageDataset(torch.utils.data.Dataset):
             image = self.transform(image)
         return image, img_path
 
-# Define the data transformation (same as for your model input)
+# Function to extract label from image path
+def get_label_from_path(image_path):
+    # Assuming the folder names are 'cluster_0', 'cluster_1', etc.
+    folder_name = os.path.basename(os.path.dirname(image_path))
+    label = int(folder_name.split('_')[-1])  # Extracts the number part, e.g., '0' from 'cluster_0'
+    return label
+
+# Define the transformation for the images
 transform = transforms.Compose([
-    transforms.Resize((700, 700)),  # Assuming your input image size is 700x700
+    transforms.Resize((700, 700)),  # Resize to 700x700
     transforms.ToTensor(),
 ])
 
 # Path to the Clusters directory
-clusters_path = '/root/stanfordData4321/stanfordData4321/clusters'
+clusters_path = '/path/to/Clusters'
 cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
 
+# Initialize dictionaries to track accuracy for each cluster
 correct_predictions = {cluster: 0 for cluster in cluster_folders}
 total_images = {cluster: 0 for cluster in cluster_folders}
 
-# Iterate over each cluster folder
+# Loop through each cluster and calculate accuracy and sensitivity maps
 for cluster in cluster_folders:
+    print(f"Processing cluster: {os.path.basename(cluster)}")
+    
+    # Create dataset and loader for the current cluster
     cluster_dataset = ClusterImageDataset(cluster, transform=transform)
     cluster_loader = DataLoader(cluster_dataset, batch_size=1, shuffle=False)
     
@@ -271,22 +289,23 @@ for cluster in cluster_folders:
     image_count = 0
     
     for images, img_paths in cluster_loader:
-        images = images.to(device)
+        images = images.to(device)  # Move images to the correct device (GPU/CPU)
         
-        # Model prediction
+        # Get model prediction
         outputs = net(images)
         _, predicted = torch.max(outputs, 1)
         
-        # Assume you have ground truth labels in file names or separate source
-        true_label = get_label_from_path(img_paths[0])  # You will need to implement this function
+        # Extract the true label from the image path
+        true_label = get_label_from_path(img_paths[0])
         total += 1
         total_images[cluster] += 1
         
+        # Check if prediction is correct
         if predicted.item() == true_label:
             correct += 1
             correct_predictions[cluster] += 1
         
-        # Get sensitivity map for first 2 images in the cluster
+        # Generate sensitivity map for the first two images in the cluster
         if image_count < 2:
             sensitivity_map = occlusion_sensitivity(net, images)
             sensitivity_map = sensitivity_map.cpu().numpy()
@@ -294,20 +313,20 @@ for cluster in cluster_folders:
             # Plot the sensitivity map
             plt.figure()
             plt.imshow(sensitivity_map, cmap='hot', interpolation='nearest')
-            plt.title(f"Sensitivity Map for Image in {cluster} - {img_paths[0]}")
+            plt.title(f"Sensitivity Map for {img_paths[0]}")
             plt.colorbar()
             plt.show()
         
         image_count += 1
     
-    # Calculate accuracy for this cluster
+    # Calculate accuracy for the current cluster
     accuracy = correct / total if total > 0 else 0
-    print(f"Accuracy for {cluster}: {accuracy * 100:.2f}%")
+    print(f"Accuracy for {os.path.basename(cluster)}: {accuracy * 100:.2f}%")
 
-# Print overall accuracy for each cluster
+# After looping through all clusters, print overall accuracy for each cluster
 for cluster in cluster_folders:
     accuracy = correct_predictions[cluster] / total_images[cluster] if total_images[cluster] > 0 else 0
-    print(f"Cluster {cluster}: {accuracy * 100:.2f}% accuracy")
+    print(f"Cluster {os.path.basename(cluster)}: {accuracy * 100:.2f}% accuracy")
 
 def occlusion_sensitivity(model, image_tensor, patch_size=15, stride=5):
     model.eval()
