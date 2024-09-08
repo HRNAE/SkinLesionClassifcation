@@ -190,7 +190,7 @@ optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
 # Define loss function and optimizer
 criterion = nn.CrossEntropyLoss()
 
-for epoch in range(5):  # Adjust epoch count as needed
+for epoch in range(10):  # Adjust epoch count as needed
     net.train()
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
@@ -269,7 +269,7 @@ transform = transforms.Compose([
 ])
 
 # Path to the Clusters directory
-clusters_path = '/path/to/Clusters'
+clusters_path = '/root/stanfordData4321/stanfordData4321/clusters'
 cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
 
 # Initialize dictionaries to track accuracy for each cluster
