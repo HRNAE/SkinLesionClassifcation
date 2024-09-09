@@ -216,6 +216,56 @@ transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
+class ClusterImageDataset(Dataset):
+    def __init__(self, cluster_dir, transform=None):
+        """
+        Initialize the dataset with the directory containing images.
+        
+        Args:
+            cluster_dir (str): Path to the cluster folder.
+            transform (callable, optional): A function/transform to apply to the images.
+        """
+        self.cluster_dir = cluster_dir
+        self.transform = transform
+        self.image_paths = self._get_image_paths()
+        
+    def _get_image_paths(self):
+        """
+        Get all image paths in the cluster directory.
+        
+        Returns:
+            list: A list of tuples where each tuple contains the image path and the folder name (cluster).
+        """
+        image_paths = []
+        for root, _, files in os.walk(self.cluster_dir):
+            for file in files:
+                if file.endswith(".png") or file.endswith(".jpg"):  # Add other extensions if needed
+                    img_path = os.path.join(root, file)
+                    image_paths.append(img_path)
+        return image_paths
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        """
+        Get an image and its path.
+        
+        Args:
+            idx (int): Index of the image.
+        
+        Returns:
+            tuple: (image, img_path) where image is the transformed image and img_path is its file path.
+        """
+        img_path = self.image_paths[idx]
+        image = Image.open(img_path).convert("RGB")
+        
+        if self.transform:
+            image = self.transform(image)
+        
+        return image, img_path
+
+
 # Path to the Clusters directory
 clusters_path = '/root/stanfordData4321/stanfordData4321/clusters'
 cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
