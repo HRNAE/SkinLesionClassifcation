@@ -220,10 +220,10 @@ if __name__ == "__main__":
     original_dataset = CustomImageDataset(root_dirs, transform=transform)
     print("Original dataset loaded.")
 
-    print("Loading augmented dataset...")
-    augmented_dataset = AugmentedImageDataset(original_dataset, augmented_dirs, transform=transform)
-    dataloader = DataLoader(augmented_dataset, batch_size=32, shuffle=False)
-    print("Augmented dataset loaded.")
+    #print("Loading augmented dataset...")
+    #augmented_dataset = AugmentedImageDataset(original_dataset, augmented_dirs, transform=transform)
+    dataloader = DataLoader(original_dataset, batch_size=32, shuffle=False)
+    #print("Augmented dataset loaded.")
 
     # Step 2: Feature extraction using a pre-trained ResNet18 model
     print("Loading pre-trained ResNet18 model...")
@@ -244,5 +244,5 @@ if __name__ == "__main__":
     clustered_images, centroids, labels = knn_clustering(reduced_features, n_clusters)
 
     # Step 5: Save the clusters
-    output_cluster_dir = "./clusters"
+    output_cluster_dir = "./clustersNew"
     save_clusters(dataloader, labels, output_cluster_dir)
