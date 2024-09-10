@@ -235,8 +235,8 @@ def generate_occlusion_sensitivity_map(image, model, occlusion_size=50, occlusio
     model.eval()
 
     # Get original image size
-    print(image.size())  # Debugging to see the shape
-
+    if len(image.size()) == 5:  # If it's a 5D tensor
+        image = image.squeeze(1)  # Remove the extra dimension
     _, _, h, w = image.size()
 
     # Get the prediction for the original image
