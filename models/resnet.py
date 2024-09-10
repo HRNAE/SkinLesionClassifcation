@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt
 import cv2
 import numpy as np
 import matplotlib.cm as cm
-from torchvision.models import resnet18
+import torchvision.models as models
+
 
 # Define categories and image size
 categories = ['7-malignant-bcc', '1-benign-melanocytic nevus', '6-benign-other',
