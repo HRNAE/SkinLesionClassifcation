@@ -218,7 +218,7 @@ transform = transforms.Compose([
 import numpy as np
 import torch
 
-def generate_occlusion_sensitivity_map(image, model, occlusion_size=50, occlusion_stride=20):
+def generate_occlusion_sensitivity_map(image, model, occlusion_size=15, occlusion_stride=15):
     """
     Generate an occlusion sensitivity map for the given image and model.
 
