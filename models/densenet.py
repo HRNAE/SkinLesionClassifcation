@@ -331,7 +331,7 @@ total_images = {cluster: 0 for cluster in cluster_folders}
 
 # Create directory for saving sensitivity maps if it doesn't exist
 if not os.path.exists('./sensitivity_mapsDense'):
-    os.makedirs('./sensitivity_maps')
+    os.makedirs('./sensitivity_mapsDense')
 
 # Loop through clusters
 for cluster in cluster_folders:
