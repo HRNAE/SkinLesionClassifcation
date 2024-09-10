@@ -218,55 +218,21 @@ transform = transforms.Compose([
 import numpy as np
 import torch
 
-def generate_occlusion_sensitivity_map(image, model, occlusion_size=50, occlusion_stride=20):
-    """
-    Generate an occlusion sensitivity map for the given image and model.
-
-    Args:
-        image (torch.Tensor): Input image tensor of shape (1, C, H, W).
-        model (torch.nn.Module): Trained model.
-        occlusion_size (int): Size of the occlusion window.
-        occlusion_stride (int): Stride of the occlusion window.
-
-    Returns:
-        np.ndarray: Sensitivity map of the same size as the input image.
-    """
-    # Set model to evaluation mode
-    model.eval()
-
-    # Get original image size
-    if len(image.size()) == 5:  # If it's a 5D tensor
-        image = image.squeeze(1)  # Remove the extra dimension
-    _, _, h, w = image.size()
-
-    # Get the prediction for the original image
+def generate_occlusion_sensitivity_map(model, image_tensor, patch_size=15, stride=15):
+    _, _, H, W = image_tensor.shape
+    sensitivity_map = torch.zeros(H, W).to(image_tensor.device)
+    
     with torch.no_grad():
-        original_output = model(image)
-    original_class = original_output.argmax(dim=1).item()
-
-    # Initialize sensitivity map
-    sensitivity_map = np.zeros((h, w))
-
-    # Occlude part of the image and get model output for each occlusion
-    for i in range(0, h, occlusion_stride):
-        for j in range(0, w, occlusion_stride):
-            # Create a copy of the original image
-            occluded_image = image.clone()
-
-            # Apply occlusion (e.g., zero out a region)
-            occluded_image[:, :, i:i + occlusion_size, j:j + occlusion_size] = 0
-
-            # Get model prediction for the occluded image
-            with torch.no_grad():
-                occluded_output = model(occluded_image)
-            occluded_score = occluded_output[0, original_class].item()
-
-            # Fill the sensitivity map with the difference in score
-            sensitivity_map[i:i + occlusion_size, j:j + occlusion_size] = original_output[0, original_class].item() - occluded_score
-
-    # Normalize the sensitivity map
-    sensitivity_map = (sensitivity_map - np.min(sensitivity_map)) / (np.max(sensitivity_map) - np.min(sensitivity_map))
-    sensitivity_map = (sensitivity_map * 255).astype(np.uint8)
+        baseline_output = model(image_tensor)
+        pred_label = torch.argmax(baseline_output, dim=1)
+        
+        for h in range(0, H - patch_size, stride):
+            for w in range(0, W - patch_size, stride):
+                occluded_image = image_tensor.clone()
+                occluded_image[:, :, h:h+patch_size, w:w+patch_size] = 0
+                output = model(occluded_image)
+                occlusion_score = output[0, pred_label]
+                sensitivity_map[h:h+patch_size, w:w+patch_size] = occlusion_score
 
     return sensitivity_map
 
