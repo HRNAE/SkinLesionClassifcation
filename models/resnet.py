@@ -121,9 +121,8 @@ test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False)
 # Load pre-trained DenseNet model and modify final layer
 weights = models.ResNet18_Weights.DEFAULT
 net = models.resnet18(weights=weights)
-
-num_ftrs = net.classifier.in_features
-net.classifier = nn.Linear(num_ftrs, len(categories))
+num_ftrs = net.fc.in_features
+net.fc = nn.Linear(num_ftrs, len(categories))
 
 # Move the model to GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
