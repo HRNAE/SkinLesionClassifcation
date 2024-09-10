@@ -3,15 +3,16 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
-import torchvision.models as models
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset
 from PIL import Image
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 from collections import Counter
-import cv2
 import optuna
+import matplotlib.pyplot as plt
+import cv2
+import numpy as np
+import matplotlib.cm as cm
+from torchvision.models import densenet201, DenseNet201_Weights
 
 # Define categories and image size
 categories = ['7-malignant-bcc', '1-benign-melanocytic nevus', '6-benign-other',
@@ -23,12 +24,12 @@ categories = ['7-malignant-bcc', '1-benign-melanocytic nevus', '6-benign-other',
               '12-malignant-other']
 img_size = 224
 
+# Define transformations
 transform = transforms.Compose([
     transforms.Resize((img_size, img_size)),
     transforms.ToTensor(),
 ])
 
-# Dataset class to load original images from the Excel file
 class ExcelImageDataset(Dataset):
     def __init__(self, excel_file, root_dirs, transform=None):
         self.data_frame = pd.read_excel(excel_file)
@@ -68,7 +69,15 @@ class ExcelImageDataset(Dataset):
         label = torch.tensor(self.label_map.get(label, -1), dtype=torch.long)
         return image, label
 
-# Dataset class to load augmented images from the directory
+# Define the root directories
+root_dirs = [
+    '/root/stanfordData4321/stanfordData4321/standardized_images/images1',
+    '/root/stanfordData4321/stanfordData4321/standardized_images/images2',
+    '/root/stanfordData4321/stanfordData4321/standardized_images/images3',
+    '/root/stanfordData4321/stanfordData4321/standardized_images/images4'
+]
+
+# Augmented dataset class
 class AugmentedImageDataset(Dataset):
     def __init__(self, original_dataset, augmented_dir, transform=None):
         self.original_dataset = original_dataset
@@ -96,57 +105,28 @@ class AugmentedImageDataset(Dataset):
             image = self.transform(image)
         return image, torch.tensor(label, dtype=torch.long)
 
-# Define the root directories for original images
-root_dirs = [
-    os.path.join(os.getcwd(), '/root/stanfordData4321/stanfordData4321/standardized_images/images1'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images2'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images3'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images4')
-]
+# Create augmented dataset
+augmented_dataset = AugmentedImageDataset(ExcelImageDataset('./dataRef/release_midas.xlsx', root_dirs, transform), './augmented_images2', transform)
+print(f"Total images in augmented dataset: {len(augmented_dataset)}")
 
-# Load original dataset
-dataset = ExcelImageDataset('./dataRef/release_midas.xlsx', root_dirs, transform)
-
-# Load augmented dataset
-augmented_dataset = AugmentedImageDataset(dataset, './augmented_images2', transform)
-
-# Combined dataset
-class CombinedDataset(Dataset):
-    def __init__(self, original_dataset, augmented_dataset):
-        self.original_dataset = original_dataset
-        self.augmented_dataset = augmented_dataset
-
-    def __len__(self):
-        return len(self.original_dataset) + len(self.augmented_dataset)
-
-    def __getitem__(self, idx):
-        if idx < len(self.original_dataset):
-            return self.original_dataset[idx]
-        else:
-            return self.augmented_dataset[idx - len(self.original_dataset)]
-
-# Create the combined dataset
-combined_dataset = CombinedDataset(dataset, augmented_dataset)
-print(f"Total images in combined dataset: {len(combined_dataset)}")
-
-# Split dataset into training and testing sets
-train_size = int(0.8 * len(combined_dataset))
-test_size = len(combined_dataset) - train_size
-train_dataset, test_dataset = random_split(combined_dataset, [train_size, test_size])
+# Train and test split
+train_size = int(0.8 * len(augmented_dataset))
+test_size = len(augmented_dataset) - train_size
+train_dataset, test_dataset = torch.utils.data.random_split(augmented_dataset, [train_size, test_size])
 
 train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False)
 
-# Load pre-trained ResNet50 model and modify the final layer
-weights = models.ResNet50_Weights.DEFAULT
-net = models.resnet50(weights=weights)
-num_ftrs = net.fc.in_features
-net.fc = nn.Linear(num_ftrs, len(categories))
+# Load pre-trained DenseNet model and modify final layer
+weights = models.ResNet18_Weights.DEFAULT
+net = models.resnet18(weights=weights)
+
+num_ftrs = net.classifier.in_features
+net.classifier = nn.Linear(num_ftrs, len(categories))
 
 # Move the model to GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 net.to(device)
-print(f"Using device: {device}")
 
 # Optuna optimization
 def objective(trial):
@@ -156,7 +136,7 @@ def objective(trial):
     optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
     criterion = nn.CrossEntropyLoss()
 
-    for epoch in range(1):  # Fewer epochs for faster optimization
+    for epoch in range(1):  # Fewer epochs for optimization
         net.train()
         running_loss = 0.0
         for inputs, labels in train_loader:
@@ -184,7 +164,7 @@ def objective(trial):
     return accuracy
 
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=3)
+study.optimize(objective, n_trials=1)
 
 best_params = study.best_params
 print("Best parameters found by Optuna:", best_params)
@@ -193,9 +173,10 @@ print("Best parameters found by Optuna:", best_params)
 best_lr = best_params['lr']
 best_momentum = best_params['momentum']
 optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
+
 criterion = nn.CrossEntropyLoss()
 
-for epoch in range(3):  # Adjust epoch count as needed
+for epoch in range(1):  # Adjust epoch count
     net.train()
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
@@ -222,7 +203,7 @@ total = 0
 with torch.no_grad():
     for data in test_loader:
         images, labels = data
-        images, labels = images.to(device), labels.to(device)  # Move labels to the same device as images
+        images, labels = images.to(device), labels.to(device)
         outputs = net(images)
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
@@ -230,37 +211,134 @@ with torch.no_grad():
 
 print(f'Accuracy on the test dataset: {100 * correct / total:.2f}%')
 
-class ClusterImageDataset(torch.utils.data.Dataset):
-    def __init__(self, folder_path, transform=None):
-        self.folder_path = folder_path
-        self.transform = transform
-        self.image_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(('png', 'jpg', 'jpeg'))]
-        
-    def __len__(self):
-        return len(self.image_files)
-    
-    def __getitem__(self, idx):
-        img_path = self.image_files[idx]
-        image = Image.open(img_path)
-        if self.transform:
-            image = self.transform(image)
-        return image, img_path
-
-# Define the data transformation (same as for your model input)
+# Define the transformation for the images
 transform = transforms.Compose([
-    transforms.Resize((700, 700)),  # Assuming your input image size is 700x700
+    transforms.Resize((700, 700)),  # Resize to 700x700
     transforms.ToTensor(),
 ])
+import numpy as np
+import torch
+
+def generate_occlusion_sensitivity_map(image, model, occlusion_size=15, occlusion_stride=15):
+    """
+    Generate an occlusion sensitivity map for the given image and model.
+
+    Args:
+        image (torch.Tensor): Input image tensor of shape (1, C, H, W).
+        model (torch.nn.Module): Trained model.
+        occlusion_size (int): Size of the occlusion window.
+        occlusion_stride (int): Stride of the occlusion window.
+
+    Returns:
+        np.ndarray: Sensitivity map of the same size as the input image.
+    """
+    # Set model to evaluation mode
+    model.eval()
+
+    # Get original image size
+    if len(image.size()) == 5:  # If it's a 5D tensor
+        image = image.squeeze(1)  # Remove the extra dimension
+    _, _, h, w = image.size()
+
+    # Get the prediction for the original image
+    with torch.no_grad():
+        original_output = model(image)
+    original_class = original_output.argmax(dim=1).item()
+
+    # Initialize sensitivity map
+    sensitivity_map = np.zeros((h, w))
+
+    # Occlude part of the image and get model output for each occlusion
+    for i in range(0, h, occlusion_stride):
+        for j in range(0, w, occlusion_stride):
+            # Create a copy of the original image
+            occluded_image = image.clone()
+
+            # Apply occlusion (e.g., zero out a region)
+            occluded_image[:, :, i:i + occlusion_size, j:j + occlusion_size] = 0
+
+            # Get model prediction for the occluded image
+            with torch.no_grad():
+                occluded_output = model(occluded_image)
+            occluded_score = occluded_output[0, original_class].item()
+
+            # Fill the sensitivity map with the difference in score
+            sensitivity_map[i:i + occlusion_size, j:j + occlusion_size] = original_output[0, original_class].item() - occluded_score
+
+    # Normalize the sensitivity map
+    sensitivity_map = (sensitivity_map - np.min(sensitivity_map)) / (np.max(sensitivity_map) - np.min(sensitivity_map))
+    sensitivity_map = (sensitivity_map * 255).astype(np.uint8)
+
+    return sensitivity_map
+
+
+class ClusterImageDataset(Dataset):
+    def __init__(self, cluster_dir, transform=None):
+        """
+        Initialize the dataset with the directory containing images.
+        
+        Args:
+            cluster_dir (str): Path to the cluster folder.
+            transform (callable, optional): A function/transform to apply to the images.
+        """
+        self.cluster_dir = cluster_dir
+        self.transform = transform
+        self.image_paths = self._get_image_paths()
+        
+    def _get_image_paths(self):
+        """
+        Get all image paths in the cluster directory.
+        
+        Returns:
+            list: A list of tuples where each tuple contains the image path and the folder name (cluster).
+        """
+        image_paths = []
+        for root, _, files in os.walk(self.cluster_dir):
+            for file in files:
+                if file.endswith(".png") or file.endswith(".jpg"):  # Add other extensions if needed
+                    img_path = os.path.join(root, file)
+                    image_paths.append(img_path)
+        return image_paths
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        """
+        Get an image and its path.
+        
+        Args:
+            idx (int): Index of the image.
+        
+        Returns:
+            tuple: (image, img_path) where image is the transformed image and img_path is its file path.
+        """
+        img_path = self.image_paths[idx]
+        image = Image.open(img_path).convert("RGB")
+        
+        if self.transform:
+            image = self.transform(image)
+        
+        return image, img_path
+
 
 # Path to the Clusters directory
 clusters_path = '/root/stanfordData4321/stanfordData4321/clusters'
 cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
 
+# Initialize dictionaries to track accuracy for each cluster
 correct_predictions = {cluster: 0 for cluster in cluster_folders}
 total_images = {cluster: 0 for cluster in cluster_folders}
 
-# Iterate over each cluster folder
+# Create directory for saving sensitivity maps if it doesn't exist
+if not os.path.exists('./sensitivity_mapsRes'):
+    os.makedirs('./sensitivity_mapsDense')
+
+# Loop through clusters
 for cluster in cluster_folders:
+    print(f"Processing cluster: {os.path.basename(cluster)}")
+    
+    # Create dataset and loader for the current cluster
     cluster_dataset = ClusterImageDataset(cluster, transform=transform)
     cluster_loader = DataLoader(cluster_dataset, batch_size=1, shuffle=False)
     
@@ -271,68 +349,49 @@ for cluster in cluster_folders:
     for images, img_paths in cluster_loader:
         images = images.to(device)
         
-        # Model prediction
-        outputs = net(images)
-        _, predicted = torch.max(outputs, 1)
+        # Make prediction
+        with torch.no_grad():
+            outputs = net(images)
+            _, predicted = torch.max(outputs.data, 1)
         
-        # Assume you have ground truth labels in file names or separate source
-        true_label = get_label_from_path(img_paths[0])  # You will need to implement this function
-        total += 1
-        total_images[cluster] += 1
-        
-        if predicted.item() == true_label:
+        # Check if prediction is correct
+        cluster_number = os.path.basename(cluster).split('_')[-1]  # Extract the number from the folder name
+        if predicted.item() == int(cluster_number):
             correct += 1
-            correct_predictions[cluster] += 1
-        
-        # Get sensitivity map for first 2 images in the cluster
-        if image_count < 2:
-            sensitivity_map = occlusion_sensitivity(net, images)
-            sensitivity_map = sensitivity_map.cpu().numpy()
+        total += 1
 
-            # Plot the sensitivity map
-            plt.figure()
-            plt.imshow(sensitivity_map, cmap='hot', interpolation='nearest')
-            plt.title(f"Sensitivity Map for Image in {cluster} - {img_paths[0]}")
-            plt.colorbar()
-            plt.show()
+        # Generate sensitivity map for first two images in the cluster
+        if image_count < 2:
+            # Add unsqueeze(0) to make the image batch size 1
+            sensitivity_map = generate_occlusion_sensitivity_map(images.unsqueeze(0), net)
+            sensitivity_map = cv2.resize(sensitivity_map, (700, 700))
+
+            # Read and resize overlay image
+            overlay_image = cv2.imread(img_paths[0])
+            if overlay_image is None:
+                print(f"Warning: Could not read image {img_paths[0]}")
+                continue
+
+            overlay_image = cv2.resize(overlay_image, (700, 700))
+            heatmap = cv2.applyColorMap(sensitivity_map, cv2.COLORMAP_JET)
+            result = cv2.addWeighted(overlay_image, 0.7, heatmap, 0.3, 0)
+            
+            # Save the result
+            result_path = f"./sensitivity_maps/{os.path.basename(cluster)}_image_{image_count}.png"
+            cv2.imwrite(result_path, result)
+            print(f"Sensitivity map saved for image {image_count} in cluster {os.path.basename(cluster)}")
         
         image_count += 1
+
+    # Update accuracy for current cluster
+    correct_predictions[cluster] += correct
+    total_images[cluster] += total
     
-    # Calculate accuracy for this cluster
-    accuracy = correct / total if total > 0 else 0
-    print(f"Accuracy for {cluster}: {accuracy * 100:.2f}%")
+    print(f"Cluster {os.path.basename(cluster)} accuracy: {100 * correct / total:.2f}%")
 
-# Print overall accuracy for each cluster
-for cluster in cluster_folders:
-    accuracy = correct_predictions[cluster] / total_images[cluster] if total_images[cluster] > 0 else 0
-    print(f"Cluster {cluster}: {accuracy * 100:.2f}% accuracy")
 
-# Occlusion sensitivity and visualization
-def occlusion_sensitivity(model, image_tensor, patch_size=15, stride=15):
-    _, _, H, W = image_tensor.shape
-    sensitivity_map = torch.zeros(H, W).to(image_tensor.device)
-    
-    with torch.no_grad():
-        baseline_output = model(image_tensor)
-        pred_label = torch.argmax(baseline_output, dim=1)
-        
-        for h in range(0, H - patch_size, stride):
-            for w in range(0, W - patch_size, stride):
-                occluded_image = image_tensor.clone()
-                occluded_image[:, :, h:h+patch_size, w:w+patch_size] = 0
-                output = model(occluded_image)
-                occlusion_score = output[0, pred_label]
-                sensitivity_map[h:h+patch_size, w:w+patch_size] = occlusion_score
-
-    return sensitivity_map
-
-# Test on a single image
-test_image, label = test_dataset[0]
-test_image = test_image.unsqueeze(0).to(device)
-sensitivity_map = occlusion_sensitivity(net, test_image)
-sensitivity_map = sensitivity_map.cpu().numpy()
-
-# Plot the sensitivity map
-plt.imshow(sensitivity_map, cmap='hot', interpolation='nearest')
-plt.colorbar()
-plt.show()
+# Calculate and print overall accuracy across clusters
+overall_correct = sum(correct_predictions.values())
+overall_total = sum(total_images.values())
+overall_accuracy = 100 * overall_correct / overall_total
+print(f"Overall accuracy across all clusters: {overall_accuracy:.2f}%")
