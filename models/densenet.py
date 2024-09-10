@@ -163,7 +163,7 @@ def objective(trial):
     return accuracy
 
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=3)
+study.optimize(objective, n_trials=2)
 
 best_params = study.best_params
 print("Best parameters found by Optuna:", best_params)
@@ -295,7 +295,9 @@ for cluster in cluster_folders:
             _, predicted = torch.max(outputs.data, 1)
         
         # Check if prediction is correct
-        if predicted.item() == int(os.path.basename(cluster)):
+        cluster_number = os.path.basename(cluster).split('_')[-1]  # Extract the number from the folder name
+        if predicted.item() == int(cluster_number):
+
             correct += 1
         total += 1
 
