@@ -215,6 +215,59 @@ transform = transforms.Compose([
     transforms.Resize((700, 700)),  # Resize to 700x700
     transforms.ToTensor(),
 ])
+import numpy as np
+import torch
+
+def generate_occlusion_sensitivity_map(image, model, occlusion_size=50, occlusion_stride=20):
+    """
+    Generate an occlusion sensitivity map for the given image and model.
+
+    Args:
+        image (torch.Tensor): Input image tensor of shape (1, C, H, W).
+        model (torch.nn.Module): Trained model.
+        occlusion_size (int): Size of the occlusion window.
+        occlusion_stride (int): Stride of the occlusion window.
+
+    Returns:
+        np.ndarray: Sensitivity map of the same size as the input image.
+    """
+    # Set model to evaluation mode
+    model.eval()
+
+    # Get original image size
+    _, _, h, w = image.size()
+
+    # Get the prediction for the original image
+    with torch.no_grad():
+        original_output = model(image)
+    original_class = original_output.argmax(dim=1).item()
+
+    # Initialize sensitivity map
+    sensitivity_map = np.zeros((h, w))
+
+    # Occlude part of the image and get model output for each occlusion
+    for i in range(0, h, occlusion_stride):
+        for j in range(0, w, occlusion_stride):
+            # Create a copy of the original image
+            occluded_image = image.clone()
+
+            # Apply occlusion (e.g., zero out a region)
+            occluded_image[:, :, i:i + occlusion_size, j:j + occlusion_size] = 0
+
+            # Get model prediction for the occluded image
+            with torch.no_grad():
+                occluded_output = model(occluded_image)
+            occluded_score = occluded_output[0, original_class].item()
+
+            # Fill the sensitivity map with the difference in score
+            sensitivity_map[i:i + occlusion_size, j:j + occlusion_size] = original_output[0, original_class].item() - occluded_score
+
+    # Normalize the sensitivity map
+    sensitivity_map = (sensitivity_map - np.min(sensitivity_map)) / (np.max(sensitivity_map) - np.min(sensitivity_map))
+    sensitivity_map = (sensitivity_map * 255).astype(np.uint8)
+
+    return sensitivity_map
+
 
 class ClusterImageDataset(Dataset):
     def __init__(self, cluster_dir, transform=None):
@@ -274,7 +327,11 @@ cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_p
 correct_predictions = {cluster: 0 for cluster in cluster_folders}
 total_images = {cluster: 0 for cluster in cluster_folders}
 
-# Loop through each cluster and calculate accuracy and sensitivity maps
+# Create directory for saving sensitivity maps if it doesn't exist
+if not os.path.exists('./sensitivity_mapsDense'):
+    os.makedirs('./sensitivity_maps')
+
+# Loop through clusters
 for cluster in cluster_folders:
     print(f"Processing cluster: {os.path.basename(cluster)}")
     
@@ -297,17 +354,21 @@ for cluster in cluster_folders:
         # Check if prediction is correct
         cluster_number = os.path.basename(cluster).split('_')[-1]  # Extract the number from the folder name
         if predicted.item() == int(cluster_number):
-
             correct += 1
         total += 1
 
         # Generate sensitivity map for first two images in the cluster
         if image_count < 2:
-            sensitivity_map = generate_sensitivity_map(images, net)
+            # Add unsqueeze(0) to make the image batch size 1
+            sensitivity_map = generate_occlusion_sensitivity_map(images.unsqueeze(0), net)
             sensitivity_map = cv2.resize(sensitivity_map, (700, 700))
 
-            # Visualize and save the sensitivity map overlay
+            # Read and resize overlay image
             overlay_image = cv2.imread(img_paths[0])
+            if overlay_image is None:
+                print(f"Warning: Could not read image {img_paths[0]}")
+                continue
+
             overlay_image = cv2.resize(overlay_image, (700, 700))
             heatmap = cv2.applyColorMap(sensitivity_map, cv2.COLORMAP_JET)
             result = cv2.addWeighted(overlay_image, 0.7, heatmap, 0.3, 0)
@@ -324,6 +385,7 @@ for cluster in cluster_folders:
     total_images[cluster] += total
     
     print(f"Cluster {os.path.basename(cluster)} accuracy: {100 * correct / total:.2f}%")
+
 
 # Calculate and print overall accuracy across clusters
 overall_correct = sum(correct_predictions.values())
