@@ -235,6 +235,8 @@ def generate_occlusion_sensitivity_map(image, model, occlusion_size=50, occlusio
     model.eval()
 
     # Get original image size
+    print(image.size())  # Debugging to see the shape
+
     _, _, h, w = image.size()
 
     # Get the prediction for the original image
