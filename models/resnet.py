@@ -215,7 +215,7 @@ print(f'Accuracy on the test dataset: {100 * correct / total:.2f}%')
 
 
 
- def generate_occlusion_sensitivity_map(image, model, occlusion_size=15, occlusion_stride=15):
+def generate_occlusion_sensitivity_map(image, model, occlusion_size=15, occlusion_stride=15):
      """
      Generate an occlusion sensitivity map for the given image and model.
      Args:
