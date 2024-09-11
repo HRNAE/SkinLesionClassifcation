@@ -164,7 +164,7 @@ def objective(trial):
     return accuracy
 
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=3)
+study.optimize(objective, n_trials=1)
 
 best_params = study.best_params
 print("Best parameters found by Optuna:", best_params)
@@ -176,7 +176,7 @@ optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
 
 criterion = nn.CrossEntropyLoss()
 
-for epoch in range(10):  # Adjust epoch count
+for epoch in range(1):  # Adjust epoch count
     net.train()
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
@@ -198,18 +198,33 @@ print('Finished Training')
 
 # Evaluate the model
 net.eval()
-correct = 0
-total = 0
-with torch.no_grad():
-    for data in test_loader:
-        images, labels = data
-        images, labels = images.to(device), labels.to(device)
-        outputs = net(images)
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
 
-print(f'Accuracy on the test dataset: {100 * correct / total:.2f}%')
+all_preds = []
+all_labels = []
+
+# Iterate through the test set
+with torch.no_grad():
+    for images, labels in test_loader:
+        images, labels = images.to(device), labels.to(device)
+        
+        # Get model predictions
+        outputs = net(images)
+        _, preds = torch.max(outputs, 1)
+        
+        # Collect predictions and labels
+        all_preds.extend(preds.cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
+
+# Calculate precision, recall, f1 score, and accuracy
+precision = precision_score(all_labels, all_preds, average='weighted')
+recall = recall_score(all_labels, all_preds, average='weighted')
+f1 = f1_score(all_labels, all_preds, average='weighted')
+accuracy = accuracy_score(all_labels, all_preds)
+
+print(f"Accuracy: {accuracy * 100:.2f}%")
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1 Score: {f1:.4f}")
 
 # Define the transformation for the images
 transform = transforms.Compose([
