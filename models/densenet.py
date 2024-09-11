@@ -106,7 +106,7 @@ class AugmentedImageDataset(Dataset):
         return image, torch.tensor(label, dtype=torch.long)
 
 # Create augmented dataset
-augmented_dataset = AugmentedImageDataset(ExcelImageDataset('./dataRef/release_midas.xlsx', root_dirs, transform), './augmented_images2', transform)
+augmented_dataset = AugmentedImageDataset(ExcelImageDataset('./dataRef/release_midas.xlsx', root_dirs, transform), './augmented_images', transform)
 print(f"Total images in augmented dataset: {len(augmented_dataset)}")
 
 # Train and test split

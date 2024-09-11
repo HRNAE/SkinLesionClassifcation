@@ -47,14 +47,6 @@ transform = transforms.Compose([
     transforms.Normalize((0.5,), (0.5,))
 ])
 
-# # Define the augmentation pipeline
-# augmentation_transforms = transforms.Compose([
-#     transforms.RandomResizedCrop(img_size),
-#     transforms.RandomHorizontalFlip(),
-#     transforms.RandomVerticalFlip(),
-#     transforms.RandomRotation(10),
-#     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2)
-# ])
 
 class ExcelImageDataset(Dataset):
     def __init__(self, excel_file, root_dirs, transform=None):
@@ -137,7 +129,7 @@ logging.info("Creating combined dataset...")
 dataset = ExcelImageDataset(excel_file_path, root_dirs, transform)
 
 # Load augmented dataset
-augmented_dataset = AugmentedImageDataset(dataset, './augmented_images2', transform)
+augmented_dataset = AugmentedImageDataset(dataset, './augmented_images', transform)
 
 
 # Combined dataset
