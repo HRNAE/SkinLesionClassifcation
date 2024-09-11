@@ -204,7 +204,7 @@ if __name__ == "__main__":
     reduced_features = reduce_dimensionality(features)
 
     # Step 4: Perform KNN clustering
-    n_clusters = 10
+    n_clusters = 14
     print(f"Performing KNN clustering with {n_clusters} clusters...")
     clustered_images, centroids, labels = knn_clustering(reduced_features, n_clusters)
 

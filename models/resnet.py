@@ -72,10 +72,10 @@ class ExcelImageDataset(Dataset):
 
 # Define the root directories
 root_dirs = [
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images1',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images2',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images3',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images4'
+    '/root/stanfordData4321/standardized_images/images1',
+    '/root/stanfordData4321/standardized_images/images2',
+    '/root/stanfordData4321/standardized_images/images3',
+    '/root/stanfordData4321/standardized_images/images4'
 ]
 
 # Augmented dataset class
@@ -176,7 +176,7 @@ optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
 
 criterion = nn.CrossEntropyLoss()
 
-for epoch in range(10):  # Adjust epoch count
+for epoch in range(1):  # Adjust epoch count
     net.train()
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
@@ -323,7 +323,7 @@ class ClusterImageDataset(Dataset):
 
 
 # Path to the Clusters directory
-clusters_path = '/root/stanfordData4321/stanfordData4321/clusters'
+clusters_path = '/root/stanfordData4321/clusters'
 cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
 
 # Initialize dictionaries to track accuracy for each cluster
