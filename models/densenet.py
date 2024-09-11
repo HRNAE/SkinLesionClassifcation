@@ -195,6 +195,12 @@ for epoch in range(10):  # Adjust epoch count
 
 print('Finished Training')
 
+# Path where you want to save the model weights
+save_path = './densenet_weights.pth'
+# Save the model's state_dict (weights)
+torch.save(net.state_dict(), save_path)
+print(f'Model weights saved to {save_path}')
+
 # Evaluate the model
 net.eval()
 correct = 0
