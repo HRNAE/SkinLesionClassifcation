@@ -263,8 +263,7 @@ def generate_occlusion_sensitivity_map(image, model, occlusion_size=15, occlusio
 
      return sensitivity_map
 
-
- class ClusterImageDataset(Dataset):
+class ClusterImageDataset(Dataset):
      def __init__(self, cluster_dir, transform=None):
          """
          Initialize the dataset with the directory containing images.
