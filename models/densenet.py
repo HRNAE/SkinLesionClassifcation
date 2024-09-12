@@ -12,7 +12,9 @@ import matplotlib.pyplot as plt
 import cv2
 import numpy as np
 import matplotlib.cm as cm
+import torchvision.models as models
 from torchvision.models import densenet201, DenseNet201_Weights
+
 
 # Define categories and image size
 categories = ['7-malignant-bcc', '1-benign-melanocytic nevus', '6-benign-other',
@@ -71,10 +73,10 @@ class ExcelImageDataset(Dataset):
 
 # Define the root directories
 root_dirs = [
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images1',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images2',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images3',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images4'
+    '/root/stanfordData4321/standardized_images/images1',
+    '/root/stanfordData4321/standardized_images/images2',
+    '/root/stanfordData4321/standardized_images/images3',
+    '/root/stanfordData4321/standardized_images/images4'
 ]
 
 # Augmented dataset class
@@ -126,7 +128,6 @@ net.classifier = nn.Linear(num_ftrs, len(categories))
 # Move the model to GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 net.to(device)
-
 # Optuna optimization
 def objective(trial):
     lr = trial.suggest_float('lr', 1e-5, 1e-1, log=True)
@@ -135,7 +136,7 @@ def objective(trial):
     optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
     criterion = nn.CrossEntropyLoss()
 
-    for epoch in range(1):  # Fewer epochs for optimization
+    for epoch in range(1):  # Fewer epochs for faster optimization
         net.train()
         running_loss = 0.0
         for inputs, labels in train_loader:
@@ -163,7 +164,7 @@ def objective(trial):
     return accuracy
 
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=3)
+study.optimize(objective, n_trials=8)
 
 best_params = study.best_params
 print("Best parameters found by Optuna:", best_params)
@@ -172,10 +173,9 @@ print("Best parameters found by Optuna:", best_params)
 best_lr = best_params['lr']
 best_momentum = best_params['momentum']
 optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
-
 criterion = nn.CrossEntropyLoss()
 
-for epoch in range(10):  # Adjust epoch count
+for epoch in range(7):  # Adjust epoch count
     net.train()
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
@@ -195,153 +195,85 @@ for epoch in range(10):  # Adjust epoch count
 
 print('Finished Training')
 
-# Path where you want to save the model weights
-save_path = './densenet_weights.pth'
-# Save the model's state_dict (weights)
-torch.save(net.state_dict(), save_path)
-print(f'Model weights saved to {save_path}')
-
 # Evaluate the model
 net.eval()
-correct = 0
-total = 0
+
+all_preds = []
+all_labels = []
+
+# Iterate through the test set
 with torch.no_grad():
-    for data in test_loader:
-        images, labels = data
+    for images, labels in test_loader:
         images, labels = images.to(device), labels.to(device)
+        
+        # Get model predictions
         outputs = net(images)
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+        _, preds = torch.max(outputs, 1)
+        
+        # Collect predictions and labels
+        all_preds.extend(preds.cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
 
-print(f'Accuracy on the test dataset: {100 * correct / total:.2f}%')
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 
-# Define the transformation for the images
-transform = transforms.Compose([
-    transforms.Resize((700, 700)),  # Resize to 700x700
-    transforms.ToTensor(),
-])
-import numpy as np
-import torch
+# Calculate precision, recall, f1 score, and accuracy
+precision = precision_score(all_labels, all_preds, average='weighted')
+recall = recall_score(all_labels, all_preds, average='weighted')
+f1 = f1_score(all_labels, all_preds, average='weighted')
+accuracy = accuracy_score(all_labels, all_preds)
 
-def generate_occlusion_sensitivity_map(image, model, occlusion_size=15, occlusion_stride=15):
-    """
-    Generate an occlusion sensitivity map for the given image and model.
+print(f"Accuracy: {accuracy * 100:.2f}%")
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1 Score: {f1:.4f}")
 
-    Args:
-        image (torch.Tensor): Input image tensor of shape (1, C, H, W).
-        model (torch.nn.Module): Trained model.
-        occlusion_size (int): Size of the occlusion window.
-        occlusion_stride (int): Stride of the occlusion window.
 
-    Returns:
-        np.ndarray: Sensitivity map of the same size as the input image.
-    """
-    # Set model to evaluation mode
-    model.eval()
-
-    # Get original image size
-    if len(image.size()) == 5:  # If it's a 5D tensor
-        image = image.squeeze(1)  # Remove the extra dimension
-    _, _, h, w = image.size()
-
-    # Get the prediction for the original image
-    with torch.no_grad():
-        original_output = model(image)
-    original_class = original_output.argmax(dim=1).item()
-
-    # Initialize sensitivity map
-    sensitivity_map = np.zeros((h, w))
-
-    # Occlude part of the image and get model output for each occlusion
-    for i in range(0, h, occlusion_stride):
-        for j in range(0, w, occlusion_stride):
-            # Create a copy of the original image
-            occluded_image = image.clone()
-
-            # Apply occlusion (e.g., zero out a region)
-            occluded_image[:, :, i:i + occlusion_size, j:j + occlusion_size] = 0
-
-            # Get model prediction for the occluded image
-            with torch.no_grad():
-                occluded_output = model(occluded_image)
-            occluded_score = occluded_output[0, original_class].item()
-
-            # Fill the sensitivity map with the difference in score
-            sensitivity_map[i:i + occlusion_size, j:j + occlusion_size] = original_output[0, original_class].item() - occluded_score
-
-    # Normalize the sensitivity map
-    sensitivity_map = (sensitivity_map - np.min(sensitivity_map)) / (np.max(sensitivity_map) - np.min(sensitivity_map))
-    sensitivity_map = (sensitivity_map * 255).astype(np.uint8)
-
-    return sensitivity_map
 
 
 class ClusterImageDataset(Dataset):
     def __init__(self, cluster_dir, transform=None):
-        """
-        Initialize the dataset with the directory containing images.
-        
-        Args:
-            cluster_dir (str): Path to the cluster folder.
-            transform (callable, optional): A function/transform to apply to the images.
-        """
         self.cluster_dir = cluster_dir
+        self.image_paths = []
         self.transform = transform
-        self.image_paths = self._get_image_paths()
-        
-    def _get_image_paths(self):
-        """
-        Get all image paths in the cluster directory.
-        
-        Returns:
-            list: A list of tuples where each tuple contains the image path and the folder name (cluster).
-        """
-        image_paths = []
+        self._load_images()
+
+    def _load_images(self):
         for root, _, files in os.walk(self.cluster_dir):
             for file in files:
-                if file.endswith(".png") or file.endswith(".jpg"):  # Add other extensions if needed
-                    img_path = os.path.join(root, file)
-                    image_paths.append(img_path)
-        return image_paths
+                if file.endswith(".png") or file.endswith(".jpg"):
+                    self.image_paths.append(os.path.join(root, file))
 
     def __len__(self):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        """
-        Get an image and its path.
-        
-        Args:
-            idx (int): Index of the image.
-        
-        Returns:
-            tuple: (image, img_path) where image is the transformed image and img_path is its file path.
-        """
         img_path = self.image_paths[idx]
         image = Image.open(img_path).convert("RGB")
-        
         if self.transform:
             image = self.transform(image)
-        
         return image, img_path
 
 
 # Path to the Clusters directory
-clusters_path = '/root/stanfordData4321/stanfordData4321/clusters'
+clusters_path = '/root/stanfordData4321/clustersNew'
 cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
 
-# Initialize dictionaries to track accuracy for each cluster
-correct_predictions = {cluster: 0 for cluster in cluster_folders}
-total_images = {cluster: 0 for cluster in cluster_folders}
+correct_predictions = {}
+total_images = {}
 
-# Create directory for saving sensitivity maps if it doesn't exist
-if not os.path.exists('./sensitivity_mapsDense'):
-    os.makedirs('./sensitivity_mapsDense')
+# Function to get label from folder name
+def get_label_from_folder_name(folder_name):
+    # Extracts the numeric label from folder name (e.g., '1-benign-melanocytic nevus')
+    label_str = folder_name.split('-')[0]
+    return int(label_str)
 
-# Loop through clusters
+# Iterate over each cluster
 for cluster in cluster_folders:
-    print(f"Processing cluster: {os.path.basename(cluster)}")
+    cluster_name = os.path.basename(cluster)
+    print(f"Processing cluster: {cluster_name}")
+
+    # Get numeric label from the cluster folder name
+    cluster_label = get_label_from_folder_name(cluster_name)
     
     # Create dataset and loader for the current cluster
     cluster_dataset = ClusterImageDataset(cluster, transform=transform)
@@ -351,52 +283,36 @@ for cluster in cluster_folders:
     total = 0
     image_count = 0
     
+    # Iterate over images in the cluster
     for images, img_paths in cluster_loader:
         images = images.to(device)
-        
+
         # Make prediction
         with torch.no_grad():
             outputs = net(images)
             _, predicted = torch.max(outputs.data, 1)
         
-        # Check if prediction is correct
-        cluster_number = os.path.basename(cluster).split('_')[-1]  # Extract the number from the folder name
-        if predicted.item() == int(cluster_number):
+        # Compare predicted label to cluster label
+        if predicted.item() == cluster_label:
             correct += 1
         total += 1
 
-        # Generate sensitivity map for first two images in the cluster
-        if image_count < 2:
-            # Add unsqueeze(0) to make the image batch size 1
-            sensitivity_map = generate_occlusion_sensitivity_map(images.unsqueeze(0), net)
-            sensitivity_map = cv2.resize(sensitivity_map, (700, 700))
-
-            # Read and resize overlay image
-            overlay_image = cv2.imread(img_paths[0])
-            if overlay_image is None:
-                print(f"Warning: Could not read image {img_paths[0]}")
-                continue
-
-            overlay_image = cv2.resize(overlay_image, (700, 700))
-            heatmap = cv2.applyColorMap(sensitivity_map, cv2.COLORMAP_JET)
-            result = cv2.addWeighted(overlay_image, 0.7, heatmap, 0.3, 0)
-            
-            # Save the result
-            result_path = f"./sensitivity_maps/{os.path.basename(cluster)}_image_{image_count}.png"
-            cv2.imwrite(result_path, result)
-            print(f"Sensitivity map saved for image {image_count} in cluster {os.path.basename(cluster)}")
-        
         image_count += 1
 
-    # Update accuracy for current cluster
-    correct_predictions[cluster] += correct
-    total_images[cluster] += total
+    # Update accuracy for the current cluster
+    correct_predictions[cluster_name] = correct
+    total_images[cluster_name] = total
     
-    print(f"Cluster {os.path.basename(cluster)} accuracy: {100 * correct / total:.2f}%")
+    # Print accuracy for the cluster
+    if total > 0:
+        print(f"Cluster {cluster_name} accuracy: {100 * correct / total:.2f}%")
+    else:
+        print(f"No images found for cluster {cluster_name}")
 
-
-# Calculate and print overall accuracy across clusters
-overall_correct = sum(correct_predictions.values())
-overall_total = sum(total_images.values())
-overall_accuracy = 100 * overall_correct / overall_total
-print(f"Overall accuracy across all clusters: {overall_accuracy:.2f}%")
+# After processing all clusters, print overall accuracy per cluster
+print("\nCluster-wise accuracy:")
+for cluster_name in correct_predictions:
+    correct = correct_predictions[cluster_name]
+    total = total_images[cluster_name]
+    accuracy = 100 * correct / total if total > 0 else 0
+    print(f"Cluster {cluster_name}: {accuracy:.2f}%")
