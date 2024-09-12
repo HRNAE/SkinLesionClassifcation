@@ -127,8 +127,52 @@ net.fc = nn.Linear(num_ftrs, len(categories))
 # Move the model to GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 net.to(device)
+# Optuna optimization
+def objective(trial):
+    lr = trial.suggest_float('lr', 1e-5, 1e-1, log=True)
+    momentum = trial.suggest_float('momentum', 0.5, 0.9)
+    
+    optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+    criterion = nn.CrossEntropyLoss()
 
-optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
+    for epoch in range(1):  # Fewer epochs for faster optimization
+        net.train()
+        running_loss = 0.0
+        for inputs, labels in train_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+
+            optimizer.zero_grad()
+            outputs = net(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+
+    net.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs = net(inputs)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    
+    accuracy = correct / total
+    return accuracy
+
+study = optuna.create_study(direction='maximize')
+study.optimize(objective, n_trials=3)
+
+best_params = study.best_params
+print("Best parameters found by Optuna:", best_params)
+
+# Training with the best parameters
+best_lr = best_params['lr']
+best_momentum = best_params['momentum']
+optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
+
 
 criterion = nn.CrossEntropyLoss()
 
