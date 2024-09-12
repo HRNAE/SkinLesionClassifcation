@@ -136,7 +136,7 @@ def objective(trial):
     optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
     criterion = nn.CrossEntropyLoss()
 
-    for epoch in range(1):  # Fewer epochs for faster optimization
+    for epoch in range(7):  # Fewer epochs for faster optimization
         net.train()
         running_loss = 0.0
         for inputs, labels in train_loader:
