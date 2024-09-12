@@ -72,10 +72,10 @@ class ExcelImageDataset(Dataset):
 
 # Define the root directories
 root_dirs = [
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images1',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images2',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images3',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images4'
+    '/root/stanfordData4321/standardized_images/images1',
+    '/root/stanfordData4321/standardized_images/images2',
+    '/root/stanfordData4321/standardized_images/images3',
+    '/root/stanfordData4321/standardized_images/images4'
 ]
 
 # Augmented dataset class
@@ -290,34 +290,34 @@ os.makedirs(output_dir, exist_ok=True)  # Create directory if it doesn't exist
 
 # List of image paths and corresponding data
 image_paths = [
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_0/img_0_31.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_0/img_1_6.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_1/img_0_13.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_1/img_1_5.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_2/img_0_27.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_2/img_1_4.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_3/img_0_11.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_3/img_0_22.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_4/img_0_6.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_4/img_0_18.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_5/img_0_7.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_5/img_0_16.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_6/img_0_21.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_6/img_0_23.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_7/img_0_0.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_7/img_0_1.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_8/img_1_0.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_8/img_1_1.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_9/img_0_14.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_9/img_0_15.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_10/img_0_4.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_10/img_0_12.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_11/img_0_2.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_11/img_0_17.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_12/img_1_19.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_12/img_2_8.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_13/img_0_3.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_13/img_3_5.png',
+    '/root/stanfordData4321/clusters/cluster_0/img_0_31.png',
+    '/root/stanfordData4321/clusters/cluster_0/img_1_6.png',
+    '/root/stanfordData4321/clusters/cluster_1/img_0_13.png',
+    '/root/stanfordData4321/clusters/cluster_1/img_1_5.png',
+    '/root/stanfordData4321/clusters/cluster_2/img_0_27.png',
+    '/root/stanfordData4321/clusters/cluster_2/img_1_4.png',
+    '/root/stanfordData4321/clusters/cluster_3/img_0_11.png',
+    '/root/stanfordData4321/clusters/cluster_3/img_0_22.png',
+    '/root/stanfordData4321/clusters/cluster_4/img_0_6.png',
+    '/root/stanfordData4321/clusters/cluster_4/img_0_18.png',
+    '/root/stanfordData4321/clusters/cluster_5/img_0_7.png',
+    '/root/stanfordData4321/clusters/cluster_5/img_0_16.png',
+    '/root/stanfordData4321/clusters/cluster_6/img_0_21.png',
+    '/root/stanfordData4321/clusters/cluster_6/img_0_23.png',
+    '/root/stanfordData4321/clusters/cluster_7/img_0_0.png',
+    '/root/stanfordData4321/clusters/cluster_7/img_0_1.png',
+    '/root/stanfordData4321/clusters/cluster_8/img_1_0.png',
+    '/root/stanfordData4321/clusters/cluster_8/img_1_1.png',
+    '/root/stanfordData4321/clusters/cluster_9/img_0_14.png',
+    '/root/stanfordData4321/clusters/cluster_9/img_0_15.png',
+    '/root/stanfordData4321/clusters/cluster_10/img_0_4.png',
+    '/root/stanfordData4321/clusters/cluster_10/img_0_12.png',
+    '/root/stanfordData4321/clusters/cluster_11/img_0_2.png',
+    '/root/stanfordData4321/clusters/cluster_11/img_0_17.png',
+    '/root/stanfordData4321/clusters/cluster_12/img_1_19.png',
+    '/root/stanfordData4321/clusters/cluster_12/img_2_8.png',
+    '/root/stanfordData4321/clusters/cluster_13/img_0_3.png',
+    '/root/stanfordData4321/clusters/cluster_13/img_3_5.png',
 ]  # Replace with your list of image paths
 # Assume you have a DataLoader or similar mechanism to load images and labels
 for img_path in image_paths:
@@ -361,7 +361,7 @@ class ClusterImageDataset(Dataset):
 
 
 # Path to the Clusters directory
-clusters_path = '/root/stanfordData4321/stanfordData4321/clustersNew'
+clusters_path = '/root/stanfordData4321/clustersNew'
 cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
 
 correct_predictions = {}
