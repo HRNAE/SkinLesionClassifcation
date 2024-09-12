@@ -1,62 +1,54 @@
+import numpy as np
 import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score
 import statsmodels.api as sm
-from statsmodels.formula.api import ols
-from statsmodels.stats.anova import anova_lm
-import matplotlib.pyplot as plt
-import seaborn as sns
-# Corrected sample dummy dataset creation
-data = {
-    'Model': ['Vanilla CNN', 'ResNet', 'DenseNet'] * 14 * 2,  # 3 models, repeated for 14 image types and 2 data augmentation conditions
-    'ImageType': list(range(1, 15)) * 6,  # 14 image types, repeated for each model
-    'DataAugmentation': ['Yes', 'No'] * 42,  # Yes or No for each condition
-    'Accuracy': [0.85, 0.88, 0.87, 0.90, 0.86, 0.89, 0.85, 0.87, 0.88, 0.91, 0.86, 0.87, 0.89, 0.85,
-                 0.83, 0.86, 0.85, 0.87, 0.84, 0.86, 0.82, 0.84, 0.85, 0.88, 0.83, 0.85, 0.87, 0.84] * 3,  # Repeated to match length
-    'Precision': [0.83, 0.87, 0.85, 0.88, 0.84, 0.86, 0.85, 0.88, 0.89, 0.92, 0.85, 0.87, 0.89, 0.84,
-                  0.81, 0.85, 0.83, 0.86, 0.82, 0.85, 0.80, 0.83, 0.85, 0.87, 0.82, 0.84, 0.86, 0.83] * 3,  # Repeated to match length
-    'Recall': [0.82, 0.86, 0.85, 0.87, 0.84, 0.85, 0.84, 0.86, 0.87, 0.89, 0.85, 0.86, 0.87, 0.83,
-               0.80, 0.84, 0.82, 0.85, 0.81, 0.84, 0.79, 0.82, 0.83, 0.85, 0.81, 0.83, 0.85, 0.82] * 3,  # Repeated to match length
-    'F1Score': [0.84, 0.87, 0.86, 0.89, 0.85, 0.87, 0.85, 0.87, 0.88, 0.90, 0.86, 0.87, 0.88, 0.84,
-                0.82, 0.85, 0.84, 0.86, 0.83, 0.85, 0.81, 0.84, 0.86, 0.87, 0.83, 0.85, 0.86, 0.83] * 3   # Repeated to match length
-}
-# Convert the data into a pandas DataFrame
-df = pd.DataFrame(data)
-# Conduct a three-way ANOVA for each performance metric
-performance_metrics = ['Accuracy', 'Precision', 'Recall', 'F1Score']
-for metric in performance_metrics:
-    print(f"\n=== ANOVA Results for {metric} ===")
-    # Fit the ANOVA model with interaction effects
-    model = ols(f'{metric} ~ C(Model) * C(ImageType) * C(DataAugmentation)', data=df).fit()
-    # Perform the ANOVA
-    anova_results = anova_lm(model, typ=2)
-    print(anova_results)
-# Optional: Visualization of the interaction effects
-# Example plot of interaction effects for one metric (Accuracy)
-plt.figure(figsize=(10, 6))
-# Updated to remove 'style' and add 'markers' and 'linestyles'
-sns.pointplot(x='ImageType', y='Accuracy', hue='Model', markers=["o", "s", "d"], linestyles=["-", "--", "-."], data=df)
-plt.title('Interaction of Model, Image Type, and Data Augmentation on Accuracy')
-plt.xlabel('Image Type (KNN Clusters)')
-plt.ylabel('Accuracy')
-plt.show()
-# If you want to plot interaction effects for other metrics, use similar code:
-# Example for Precision
-plt.figure(figsize=(10, 6))
-sns.pointplot(x='ImageType', y='Precision', hue='Model', markers=["o", "s", "d"], linestyles=["-", "--", "-."], data=df)
-plt.title('Interaction of Model, Image Type, and Data Augmentation on Precision')
-plt.xlabel('Image Type (KNN Clusters)')
-plt.ylabel('Precision')
-plt.show()
-# Example for Recall
-plt.figure(figsize=(10, 6))
-sns.pointplot(x='ImageType', y='Recall', hue='Model', markers=["o", "s", "d"], linestyles=["-", "--", "-."], data=df)
-plt.title('Interaction of Model, Image Type, and Data Augmentation on Recall')
-plt.xlabel('Image Type (KNN Clusters)')
-plt.ylabel('Recall')
-plt.show()
-# Example for F1Score
-plt.figure(figsize=(10, 6))
-sns.pointplot(x='ImageType', y='F1Score', hue='Model', markers=["o", "s", "d"], linestyles=["-", "--", "-."], data=df)
-plt.title('Interaction of Model, Image Type, and Data Augmentation on F1Score')
-plt.xlabel('Image Type (KNN Clusters)')
-plt.ylabel('F1 Score')
-plt.show()
+# Assuming salience_features are already pre-converted into vectors (replace with actual vectors)
+# Example salience_features with shape (n_samples, n_features)
+salience_features = np.array([
+    [0.7058, 0.0068, 0.7840, 0, 0, 0, 0.0489, 0,0,0,0.0056,0.0029,0.0135,0.0167],
+     [0.9580, 0.0500, 0.80, 0.01, 0.01, 0.01, 0.1, 0,0.005,0.005,0.04,0.025,0.03,0.05],
+     [0.9650, 0.04, 0.85, 0.02, 0.02, 0.015, 0.0750, 0,0.01,0.01,0.055,0.03,0.045,0.06]
+    # Add more pre-converted vectors as needed
+])
+# Simulate other feature data (replace with actual data)
+n_samples = salience_features.shape[0]  # Number of data points based on the number of vectors
+n_model_features = 2  # model_type, image_type (augmentation removed)
+# Randomly generate model_features (replace with actual data)
+model_features = np.random.randint(0, 2, size=(n_samples, n_model_features))
+# Randomly generate accuracy values (replace with actual accuracy data)
+accuracy_metrics = np.random.rand(n_samples)  # Accuracy values between 0 and 1
+# Step 1: Multiple Regression (Linear Regression using scikit-learn)
+# Concatenate model_features and salience_features
+X = np.concatenate([model_features, salience_features], axis=1)
+y = accuracy_metrics  # Using accuracy as the target variable
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Fit the Linear Regression model
+linear_reg = LinearRegression()
+linear_reg.fit(X_train, y_train)
+# Predict on test set
+y_pred = linear_reg.predict(X_test)
+# Calculate R-squared for the test set
+r2 = r2_score(y_test, y_pred)
+print(f"Multiple Regression R-squared (Test Data): {r2:.4f}")
+# Step 2: Hierarchical Regression (Using statsmodels for OLS)
+# Build the base model with only model_features
+X_base = sm.add_constant(model_features)  # Adds constant term (intercept) to the model
+ols_base_model = sm.OLS(accuracy_metrics, X_base).fit()
+# Build the combined model with model_features + salience_features
+X_combined = sm.add_constant(np.concatenate([model_features, salience_features], axis=1))
+ols_combined_model = sm.OLS(accuracy_metrics, X_combined).fit()
+# Print the summary for both models
+print("\nBase Model (Only Model Features) Summary:")
+print(ols_base_model.summary())
+print("\nCombined Model (Model Features + Salience Features) Summary:")
+print(ols_combined_model.summary())
+# Calculate additional variance explained
+r2_base = ols_base_model.rsquared
+r2_combined = ols_combined_model.rsquared
+additional_variance_explained = r2_combined - r2_base
+print(f"\nR-squared for Base Model: {r2_base:.4f}")
+print(f"R-squared for Combined Model: {r2_combined:.4f}")
+print(f"Additional Variance Explained by Salience Features: {additional_variance_explained:.4f}")
