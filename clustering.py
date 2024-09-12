@@ -48,10 +48,10 @@ class ExcelImageDataset(Dataset):
 
 # Paths and transformation
 excel_file = './dataRef/release_midas.xlsx'  # Path to your Excel file
-root_dirs = ['/root/stanfordData4321/standardized_images/images1',
-            '/root/stanfordData4321/standardized_images/images2',
-            '/root/stanfordData4321/standardized_images/images3',
-            '/root/stanfordData4321/standardized_images/images4']  # Root directories containing images
+root_dirs = ['/root/stanfordData4321/stanfordData4321/standardized_images/images1',
+            '/root/stanfordData4321/stanfordData4321/standardized_images/images2',
+            '/root/stanfordData4321/stanfordData4321/standardized_images/images3',
+            '/root/stanfordData4321/stanfordData4321/standardized_images/images4']  # Root directories containing images
 output_folder = '/root/stanfordData4321/clustersNew'  # Path to save the clustered images
 
 # Image transformations (if needed)
