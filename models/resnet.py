@@ -277,12 +277,19 @@ cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_p
 correct_predictions = {}
 total_images = {}
 
-# Iterate over clusters
+# Function to get label from folder name
+def get_label_from_folder_name(folder_name):
+    # Extracts the numeric label from folder name (e.g., '1-benign-melanocytic nevus')
+    label_str = folder_name.split('-')[0]
+    return int(label_str)
+
+# Iterate over each cluster
 for cluster in cluster_folders:
-    print(f"Processing cluster: {os.path.basename(cluster)}")
-    
-    # Extract the numeric label from the cluster folder name
-    cluster_number = os.path.basename(cluster).split('-')[0]
+    cluster_name = os.path.basename(cluster)
+    print(f"Processing cluster: {cluster_name}")
+
+    # Get numeric label from the cluster folder name
+    cluster_label = get_label_from_folder_name(cluster_name)
     
     # Create dataset and loader for the current cluster
     cluster_dataset = ClusterImageDataset(cluster, transform=transform)
@@ -292,22 +299,23 @@ for cluster in cluster_folders:
     total = 0
     image_count = 0
     
+    # Iterate over images in the cluster
     for images, img_paths in cluster_loader:
         images = images.to(device)
-        
+
         # Make prediction
         with torch.no_grad():
             outputs = net(images)
             _, predicted = torch.max(outputs.data, 1)
         
-        # Check if prediction is correct
-        if predicted.item() == int(cluster_number):
+        # Compare predicted label to cluster label
+        if predicted.item() == cluster_label:
             correct += 1
         total += 1
 
-        # Generate sensitivity map for first two images in the cluster
+        # Generate occlusion sensitivity map for first two images in the cluster
         if image_count < 2:
-            # Add unsqueeze(0) to make the image batch size 1
+            # Generate occlusion sensitivity map
             sensitivity_map = generate_occlusion_sensitivity_map(images.unsqueeze(0), net)
             sensitivity_map = cv2.resize(sensitivity_map, (700, 700))
 
@@ -320,16 +328,28 @@ for cluster in cluster_folders:
             overlay_image = cv2.resize(overlay_image, (700, 700))
             heatmap = cv2.applyColorMap(sensitivity_map, cv2.COLORMAP_JET)
             result = cv2.addWeighted(overlay_image, 0.7, heatmap, 0.3, 0)
-            
-            # Save the result
-            result_path = f"./sensitivity_maps/{os.path.basename(cluster)}_image_{image_count}.png"
+
+            # Save the sensitivity map
+            result_path = f"./root/stanfordData4321/stanfordData4321/sentivity_maps/{cluster_name}_image_{image_count}.png"
             cv2.imwrite(result_path, result)
-            print(f"Sensitivity map saved for image {image_count} in cluster {os.path.basename(cluster)}")
-        
+            print(f"Sensitivity map saved for image {image_count} in cluster {cluster_name}")
+
         image_count += 1
 
-    # Update accuracy for current cluster
-    correct_predictions[cluster] = correct
-    total_images[cluster] = total
+    # Update accuracy for the current cluster
+    correct_predictions[cluster_name] = correct
+    total_images[cluster_name] = total
     
-    print(f"Cluster {os.path.basename(cluster)} accuracy: {100 * correct / total:.2f}%")
+    # Print accuracy for the cluster
+    if total > 0:
+        print(f"Cluster {cluster_name} accuracy: {100 * correct / total:.2f}%")
+    else:
+        print(f"No images found for cluster {cluster_name}")
+
+# After processing all clusters, print overall accuracy per cluster
+print("\nCluster-wise accuracy:")
+for cluster_name in correct_predictions:
+    correct = correct_predictions[cluster_name]
+    total = total_images[cluster_name]
+    accuracy = 100 * correct / total if total > 0 else 0
+    print(f"Cluster {cluster_name}: {accuracy:.2f}%")
