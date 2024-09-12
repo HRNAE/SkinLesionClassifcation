@@ -1,4 +1,4 @@
-import os
+os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,23 +13,25 @@ import logging
 import optuna
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 # Use GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 logging.info("Using device: %s", device)
 
+
 # Load the Excel file
 excel_file_path = './dataRef/release_midas.xlsx'
 if not os.path.exists(excel_file_path):
     raise FileNotFoundError(f"{excel_file_path} does not exist. Please check the path.")
-
 df = pd.read_excel(excel_file_path)
 logging.info("Excel file loaded. First few rows:")
 logging.info("%s", df.head())
+
 
 # Define categories and image size
 categories = ['7-malignant-bcc', '1-benign-melanocytic nevus', '6-benign-other',
@@ -41,6 +43,7 @@ categories = ['7-malignant-bcc', '1-benign-melanocytic nevus', '6-benign-other',
               '12-malignant-other']
 img_size = 224  # Image size set to 224
 
+
 # Compose the transformation pipeline
 transform = transforms.Compose([
     transforms.Resize((img_size, img_size)),
@@ -48,17 +51,16 @@ transform = transforms.Compose([
     transforms.Normalize((0.5,), (0.5,))
 ])
 
-# Dataset class to load images from Excel and directories
+
+
 class ExcelImageDataset(Dataset):
     def __init__(self, excel_file, root_dirs, transform=None):
         self.data_frame = pd.read_excel(excel_file)
         self.data_frame.iloc[:, 0] = self.data_frame.iloc[:, 0].astype(str)
         self.root_dirs = root_dirs
         self.transform = transform
-
         self.label_map = {label: idx for idx, label in enumerate(categories)}
         self.image_paths = self._get_image_paths()
-
     def _get_image_paths(self):
         valid_paths = []
         for idx, row in self.data_frame.iterrows():
@@ -89,6 +91,14 @@ class ExcelImageDataset(Dataset):
         label = torch.tensor(self.label_map.get(label, -1), dtype=torch.long)
         return image, label
 
+# Define the root directories
+root_dirs = [
+    '/root/stanfordData4321/stanfordData4321/standardized_images/images1',
+    '/root/stanfordData4321/stanfordData4321/standardized_images/images2',
+    '/root/stanfordData4321/stanfordData4321/standardized_images/images3',
+    '/root/stanfordData4321/stanfordData4321/standardized_images/images4'
+]
+
 # Dataset class to load augmented images from the directory
 class AugmentedImageDataset(Dataset):
     def __init__(self, original_dataset, augmented_dir, transform=None):
@@ -96,7 +106,6 @@ class AugmentedImageDataset(Dataset):
         self.augmented_dir = augmented_dir
         self.transform = transform
         self.augmented_paths = self._get_augmented_paths()
-
     def _get_augmented_paths(self):
         augmented_paths = []
         for root, _, files in os.walk(self.augmented_dir):
@@ -106,10 +115,8 @@ class AugmentedImageDataset(Dataset):
                     label = int(os.path.basename(root))
                     augmented_paths.append((img_path, label))
         return augmented_paths
-
     def __len__(self):
         return len(self.augmented_paths)
-
     def __getitem__(self, idx):
         img_path, label = self.augmented_paths[idx]
         image = Image.open(img_path).convert("RGB")
@@ -117,50 +124,44 @@ class AugmentedImageDataset(Dataset):
             image = self.transform(image)
         return image, torch.tensor(label, dtype=torch.long)
 
-# Define the root directories
-root_dirs = [
-    os.path.join(os.getcwd(), '/root/stanfordData4321/stanfordData4321/standardized_images/images1'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images2'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images3'),
-    os.path.join('/root/stanfordData4321/stanfordData4321/standardized_images/images4')
-]
+
 
 # Load original dataset
 logging.info("Creating combined dataset...")
 dataset = ExcelImageDataset(excel_file_path, root_dirs, transform)
 
+
 # Load augmented dataset
 augmented_dataset = AugmentedImageDataset(dataset, './augmented_images', transform)
+
+
 
 # Combined dataset
 class CombinedDataset(Dataset):
     def __init__(self, original_dataset, augmented_dataset):
         self.original_dataset = original_dataset
         self.augmented_dataset = augmented_dataset
-
     def __len__(self):
         return len(self.original_dataset) + len(self.augmented_dataset)
-
     def __getitem__(self, idx):
         if idx < len(self.original_dataset):
             return self.original_dataset[idx]
         else:
             return self.augmented_dataset[idx - len(self.original_dataset)]
-
 # Create the combined dataset
 combined_dataset = CombinedDataset(dataset, augmented_dataset)
-logging.info(f"Total images in combined dataset: {len(combined_dataset)}")
-
+print(f"Total images in combined dataset: {len(combined_dataset)}")
 # Split dataset into training and testing subsets
 logging.info("Splitting dataset into training and testing subsets...")
 train_size = int(0.8 * len(augmented_dataset))
 test_size = len(augmented_dataset) - train_size
 train_dataset, test_dataset = random_split(augmented_dataset, [train_size, test_size])
-
 logging.info("Length train dataset: %d", len(train_dataset))
 logging.info("Length test dataset: %d", len(test_dataset))
 
-# Define the custom model class
+
+
+# Define the custom model class based on your initial architecture
 class CustomModel(nn.Module):
     def __init__(self):
         super(CustomModel, self).__init__()
@@ -177,7 +178,6 @@ class CustomModel(nn.Module):
         self.fc1 = nn.Linear(128 * 7 * 7, 512)
         self.fc2 = nn.Linear(512, 128)
         self.fc3 = nn.Linear(128, len(categories))
-
     def forward(self, x):
         x = self.pool1(F.relu(self.conv1(x)))
         x = self.pool2(F.relu(self.conv2(x)))
@@ -190,86 +190,91 @@ class CustomModel(nn.Module):
         x = self.fc3(x)
         return x
 
+
 # Create model instance, loss function, and optimizer
 model = CustomModel().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+
 
 # Set up data loaders
 batch_size = 16
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
-# Function to train the model
-def train_model(model, train_loader, criterion, optimizer, epochs=10):
+
+# Train the model
+def train_model(model, train_loader, criterion, optimizer, num_epochs=25):
     model.train()
-    for epoch in range(epochs):
+    for epoch in range(num_epochs):
         running_loss = 0.0
-        for inputs, labels in train_loader:
-            inputs, labels = inputs.to(device), labels.to(device)
+        for i, (images, labels) in enumerate(train_loader):
+            images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
-            outputs = model(inputs)
+            outputs = model(images)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-            running_loss += loss.item() * inputs.size(0)
-        epoch_loss = running_loss / len(train_loader.dataset)
-        logging.info(f"Epoch {epoch+1}/{epochs}, Loss: {epoch_loss:.4f}")
+            running_loss += loss.item()
+        logging.info("Epoch [%d/%d], Loss: %.4f", epoch+1, num_epochs, running_loss/len(train_loader))
+logging.info("Starting training...")
+train_model(model, train_loader, criterion, optimizer, num_epochs=35)
 
-# Function to evaluate the model
-def evaluate_model(model, test_loader):
+
+# Test the model
+def test_model(model, test_loader):
     model.eval()
-    all_preds = []
-    all_labels = []
+    correct = 0
+    total = 0
     with torch.no_grad():
-        for inputs, labels in test_loader:
-            inputs, labels = inputs.to(device), labels.to(device)
-            outputs = model(inputs)
-            _, preds = torch.max(outputs, 1)
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
-    return np.array(all_labels), np.array(all_preds)
+        for images, labels in test_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    logging.info('Test Accuracy: %.2f %%', 100 * correct / total)
+logging.info("Starting testing...")
+test_model(model, test_loader)
 
-# Train the model
-logging.info("Starting model training...")
-train_model(model, train_loader, criterion, optimizer, epochs=25)
 
-# Evaluate the model
-logging.info("Evaluating model...")
-true_labels, pred_labels = evaluate_model(model, test_loader)
+# Occlusion Sensitivity Helper Functions
+def compute_occlusion_sensitivity(model, image, label, occlusion_size=16, occlusion_stride=8):
+    model.eval()  # Set the model to evaluation mode
+    image = image.unsqueeze(0)
+    with torch.no_grad():
+        original_output = model(image.to(device))
+        original_score = F.softmax(original_output, dim=1)[0, label].item()
+    sensitivity_map = np.zeros((image.size(2), image.size(3)))
+    for y in range(0, image.size(2), occlusion_stride):
+        for x in range(0, image.size(3), occlusion_stride):
+            occluded_image = image.clone()
+            occluded_image[:, :, y:y+occlusion_size, x:x+occlusion_size] = 0.0
+            with torch.no_grad():
+                output = model(occluded_image.to(device))
+                score = F.softmax(output, dim=1)[0, label].item()
+            sensitivity_map[y:y+occlusion_size, x:x+occlusion_size] = original_score - score
+    return sensitivity_map
 
-# Calculate metrics
-accuracy = accuracy_score(true_labels, pred_labels)
-precision = precision_score(true_labels, pred_labels, average='weighted')
-recall = recall_score(true_labels, pred_labels, average='weighted')
-f1 = f1_score(true_labels, pred_labels, average='weighted')
 
-# Log metrics
-logging.info(f"Accuracy: {accuracy:.4f}")
-logging.info(f"Precision: {precision:.4f}")
-logging.info(f"Recall: {recall:.4f}")
-logging.info(f"F1 Score: {f1:.4f}")
-
-# Function to plot sample predictions
-def plot_sample_predictions(data_loader, model, num_samples=5):
-    model.eval()
-    images, labels = next(iter(data_loader))
-    outputs = model(images.to(device))
-    _, preds = torch.max(outputs, 1)
-    fig = plt.figure(figsize=(12, 6))
-    for i in range(num_samples):
-        ax = fig.add_subplot(1, num_samples, i+1, xticks=[], yticks=[])
-        img = images[i].permute(1, 2, 0).numpy()
-        ax.imshow(img)
-        true_label = labels[i].item()
-        pred_label = preds[i].item()
-        ax.set_title(f"True: {true_label}\nPred: {pred_label}")
+def plot_occlusion_sensitivity(sensitivity_map, original_image, save_path=None):
+    original_image_np = np.transpose(original_image.numpy(), (1, 2, 0))
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.imshow((original_image_np * 0.5) + 0.5)
+    plt.title('Original Image')
+    plt.subplot(1, 2, 2)
+    plt.imshow(sensitivity_map, cmap='hot', interpolation='nearest')
+    plt.colorbar()
+    plt.title('Occlusion Sensitivity')
+    if save_path:
+        plt.savefig(save_path)
     plt.show()
 
-# Plot sample predictions
-plot_sample_predictions(test_loader, model)
-
-# Save the model
-model_path = 'best_possible_model.pth'
-torch.save(model.state_dict(), model_path)
-logging.info(f"Model saved to {model_path}")
+    
+# Pick an image from the test dataset and compute occlusion sensitivity
+test_img, test_label = test_dataset[0]
+test_img = test_img.to(device)
+test_label = test_label.to(device)
+sensitivity_map = compute_occlusion_sensitivity(model, test_img, test_label.item(), occlusion_size=16, occlusion_stride=8)
+plot_occlusion_sensitivity(sensitivity_map, test_img.cpu(), save_path='./occlusion_sensitivity.png')
