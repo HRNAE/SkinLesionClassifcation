@@ -329,17 +329,18 @@ image_paths = [
     '/root/stanfordData4321/stanfordData4321/clusters/cluster_13/img_3_5.png',
 ]  # Replace with your list of image paths
 # Assume you have a DataLoader or similar mechanism to load images and labels
-for i, (image, label) in enumerate(your_data_loader):
-    image = image.to(device)  # Move image to GPU if needed
-    sensitivity_map = generate_occlusion_sensitivity_map(image.unsqueeze(0), net)
-    
-    # Resize sensitivity map to the original image size if needed
-    # sensitivity_map = cv2.resize(sensitivity_map, (original_width, original_height))
+for img_path in image_paths:
+    # Load and preprocess the image
+    image = Image.open(img_path).convert("RGB")
+    image = transform(image).unsqueeze(0).to(device)
 
-    # Save sensitivity map
-    output_path = os.path.join(output_dir, f"sensitivity_map_{i}.png")
-    cv2.imwrite(output_path, sensitivity_map)
-    print(f"Sensitivity map saved to {output_path}")
+    # Generate the sensitivity map
+    sensitivity_map = generate_occlusion_sensitivity_map(image, net)
+
+    # Resize and save the sensitivity map
+    result_path = os.path.join('./OS', os.path.basename(img_path).replace('.jpg', '_sensitivity.png'))
+    cv2.imwrite(result_path, sensitivity_map)
+    print(f"Sensitivity map saved for {img_path} at {result_path}")
 
 
 
