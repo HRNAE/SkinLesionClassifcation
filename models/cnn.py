@@ -205,95 +205,71 @@ def train_model(model, train_loader, criterion, optimizer, epochs=10):
     model.train()
     for epoch in range(epochs):
         running_loss = 0.0
-        correct = 0
-        total = 0
-
-        for i, (images, labels) in enumerate(train_loader, 0):
-            images, labels = images.to(device), labels.to(device)
-
-            # Zero the parameter gradients
+        for inputs, labels in train_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
-
-            # Forward pass
-            outputs = model(images)
+            outputs = model(inputs)
             loss = criterion(outputs, labels)
-
-            # Backward pass and optimize
             loss.backward()
             optimizer.step()
+            running_loss += loss.item() * inputs.size(0)
+        epoch_loss = running_loss / len(train_loader.dataset)
+        logging.info(f"Epoch {epoch+1}/{epochs}, Loss: {epoch_loss:.4f}")
 
-            # Calculate running loss
-            running_loss += loss.item()
-
-            # Track accuracy
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-            if i % 100 == 99:  # Print every 100 mini-batches
-                logging.info('[Epoch: %d, Mini-batch: %5d] Loss: %.3f, Accuracy: %.2f%%',
-                             epoch + 1, i + 1, running_loss / 100, (correct / total) * 100)
-                running_loss = 0.0
-
-        logging.info('Epoch [%d/%d] - Training Accuracy: %.2f%%', epoch + 1, epochs, (correct / total) * 100)
-
-    logging.info('Finished Training')
-
-# Function to test the model
-def test_model(model, test_loader):
+# Function to evaluate the model
+def evaluate_model(model, test_loader):
     model.eval()
-    correct = 0
-    total = 0
     all_preds = []
     all_labels = []
-
     with torch.no_grad():
-        for images, labels in test_loader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-            # Store predictions and labels for metrics
-            all_preds.extend(predicted.cpu().numpy())
+        for inputs, labels in test_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
+            all_preds.extend(preds.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
+    return np.array(all_labels), np.array(all_preds)
 
-    accuracy = (correct / total) * 100
-    logging.info('Test Accuracy: %.2f%%', accuracy)
+# Train the model
+logging.info("Starting model training...")
+train_model(model, train_loader, criterion, optimizer, epochs=25)
 
-    # Calculate precision, recall, and F1-score
-    precision = precision_score(all_labels, all_preds, average='weighted')
-    recall = recall_score(all_labels, all_preds, average='weighted')
-    f1 = f1_score(all_labels, all_preds, average='weighted')
+# Evaluate the model
+logging.info("Evaluating model...")
+true_labels, pred_labels = evaluate_model(model, test_loader)
 
-    logging.info('Precision: %.4f, Recall: %.4f, F1 Score: %.4f', precision, recall, f1)
+# Calculate metrics
+accuracy = accuracy_score(true_labels, pred_labels)
+precision = precision_score(true_labels, pred_labels, average='weighted')
+recall = recall_score(true_labels, pred_labels, average='weighted')
+f1 = f1_score(true_labels, pred_labels, average='weighted')
 
-    return accuracy, precision, recall, f1
+# Log metrics
+logging.info(f"Accuracy: {accuracy:.4f}")
+logging.info(f"Precision: {precision:.4f}")
+logging.info(f"Recall: {recall:.4f}")
+logging.info(f"F1 Score: {f1:.4f}")
 
-# Plot sample predictions
-def plot_sample_predictions(model, test_loader, num_samples=5):
+# Function to plot sample predictions
+def plot_sample_predictions(data_loader, model, num_samples=5):
     model.eval()
-    images, labels = next(iter(test_loader))
-    images, labels = images[:num_samples].to(device), labels[:num_samples].to(device)
-
-    with torch.no_grad():
-        outputs = model(images)
-        _, predicted = torch.max(outputs, 1)
-
-    fig, axs = plt.subplots(1, num_samples, figsize=(15, 5))
+    images, labels = next(iter(data_loader))
+    outputs = model(images.to(device))
+    _, preds = torch.max(outputs, 1)
+    fig = plt.figure(figsize=(12, 6))
     for i in range(num_samples):
-        img = images[i].cpu().numpy().transpose(1, 2, 0)
-        img = (img * 0.5) + 0.5  # Undo normalization
-        axs[i].imshow(img)
-        axs[i].set_title(f'Pred: {categories[predicted[i].item()]}\nTrue: {categories[labels[i].item()]}')
-        axs[i].axis('off')
-
+        ax = fig.add_subplot(1, num_samples, i+1, xticks=[], yticks=[])
+        img = images[i].permute(1, 2, 0).numpy()
+        ax.imshow(img)
+        true_label = labels[i].item()
+        pred_label = preds[i].item()
+        ax.set_title(f"True: {true_label}\nPred: {pred_label}")
     plt.show()
 
-# Train and test the model
-train_model(model, train_loader, criterion, optimizer, epochs=10)
-test_accuracy, test_precision, test_recall, test_f1 = test_model(model, test_loader)
+# Plot sample predictions
+plot_sample_predictions(test_loader, model)
 
-# Plot some sample predictions
-plot_sample_predictions(model, test_loader)
+# Save the model
+model_path = 'best_possible_model.pth'
+torch.save(model.state_dict(), model_path)
+logging.info(f"Model saved to {model_path}")
