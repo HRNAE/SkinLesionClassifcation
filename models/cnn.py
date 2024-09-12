@@ -13,6 +13,7 @@ import logging
 import optuna
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -47,7 +48,7 @@ transform = transforms.Compose([
     transforms.Normalize((0.5,), (0.5,))
 ])
 
-
+# Dataset class to load images from Excel and directories
 class ExcelImageDataset(Dataset):
     def __init__(self, excel_file, root_dirs, transform=None):
         self.data_frame = pd.read_excel(excel_file)
@@ -131,7 +132,6 @@ dataset = ExcelImageDataset(excel_file_path, root_dirs, transform)
 # Load augmented dataset
 augmented_dataset = AugmentedImageDataset(dataset, './augmented_images', transform)
 
-
 # Combined dataset
 class CombinedDataset(Dataset):
     def __init__(self, original_dataset, augmented_dataset):
@@ -149,7 +149,7 @@ class CombinedDataset(Dataset):
 
 # Create the combined dataset
 combined_dataset = CombinedDataset(dataset, augmented_dataset)
-print(f"Total images in combined dataset: {len(combined_dataset)}")
+logging.info(f"Total images in combined dataset: {len(combined_dataset)}")
 
 # Split dataset into training and testing subsets
 logging.info("Splitting dataset into training and testing subsets...")
@@ -160,7 +160,7 @@ train_dataset, test_dataset = random_split(augmented_dataset, [train_size, test_
 logging.info("Length train dataset: %d", len(train_dataset))
 logging.info("Length test dataset: %d", len(test_dataset))
 
-# Define the custom model class based on your initial architecture
+# Define the custom model class
 class CustomModel(nn.Module):
     def __init__(self):
         super(CustomModel, self).__init__()
@@ -200,29 +200,53 @@ batch_size = 16
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
-# Train the model
-def train_model(model, train_loader, criterion, optimizer, num_epochs=25):
+# Function to train the model
+def train_model(model, train_loader, criterion, optimizer, epochs=10):
     model.train()
-    for epoch in range(num_epochs):
+    for epoch in range(epochs):
         running_loss = 0.0
-        for i, (images, labels) in enumerate(train_loader):
+        correct = 0
+        total = 0
+
+        for i, (images, labels) in enumerate(train_loader, 0):
             images, labels = images.to(device), labels.to(device)
+
+            # Zero the parameter gradients
             optimizer.zero_grad()
+
+            # Forward pass
             outputs = model(images)
             loss = criterion(outputs, labels)
+
+            # Backward pass and optimize
             loss.backward()
             optimizer.step()
+
+            # Calculate running loss
             running_loss += loss.item()
-        logging.info("Epoch [%d/%d], Loss: %.4f", epoch+1, num_epochs, running_loss/len(train_loader))
 
-logging.info("Starting training...")
-train_model(model, train_loader, criterion, optimizer, num_epochs=35)
+            # Track accuracy
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
 
-# Test the model
+            if i % 100 == 99:  # Print every 100 mini-batches
+                logging.info('[Epoch: %d, Mini-batch: %5d] Loss: %.3f, Accuracy: %.2f%%',
+                             epoch + 1, i + 1, running_loss / 100, (correct / total) * 100)
+                running_loss = 0.0
+
+        logging.info('Epoch [%d/%d] - Training Accuracy: %.2f%%', epoch + 1, epochs, (correct / total) * 100)
+
+    logging.info('Finished Training')
+
+# Function to test the model
 def test_model(model, test_loader):
     model.eval()
     correct = 0
     total = 0
+    all_preds = []
+    all_labels = []
+
     with torch.no_grad():
         for images, labels in test_loader:
             images, labels = images.to(device), labels.to(device)
@@ -230,49 +254,46 @@ def test_model(model, test_loader):
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-    logging.info('Test Accuracy: %.2f %%', 100 * correct / total)
 
-logging.info("Starting testing...")
-test_model(model, test_loader)
+            # Store predictions and labels for metrics
+            all_preds.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
 
-# Occlusion Sensitivity Helper Functions
-def compute_occlusion_sensitivity(model, image, label, occlusion_size=16, occlusion_stride=8):
-    model.eval()  # Set the model to evaluation mode
-    image = image.unsqueeze(0)
+    accuracy = (correct / total) * 100
+    logging.info('Test Accuracy: %.2f%%', accuracy)
+
+    # Calculate precision, recall, and F1-score
+    precision = precision_score(all_labels, all_preds, average='weighted')
+    recall = recall_score(all_labels, all_preds, average='weighted')
+    f1 = f1_score(all_labels, all_preds, average='weighted')
+
+    logging.info('Precision: %.4f, Recall: %.4f, F1 Score: %.4f', precision, recall, f1)
+
+    return accuracy, precision, recall, f1
+
+# Plot sample predictions
+def plot_sample_predictions(model, test_loader, num_samples=5):
+    model.eval()
+    images, labels = next(iter(test_loader))
+    images, labels = images[:num_samples].to(device), labels[:num_samples].to(device)
+
     with torch.no_grad():
-        original_output = model(image.to(device))
-        original_score = F.softmax(original_output, dim=1)[0, label].item()
+        outputs = model(images)
+        _, predicted = torch.max(outputs, 1)
 
-    sensitivity_map = np.zeros((image.size(2), image.size(3)))
+    fig, axs = plt.subplots(1, num_samples, figsize=(15, 5))
+    for i in range(num_samples):
+        img = images[i].cpu().numpy().transpose(1, 2, 0)
+        img = (img * 0.5) + 0.5  # Undo normalization
+        axs[i].imshow(img)
+        axs[i].set_title(f'Pred: {categories[predicted[i].item()]}\nTrue: {categories[labels[i].item()]}')
+        axs[i].axis('off')
 
-    for y in range(0, image.size(2), occlusion_stride):
-        for x in range(0, image.size(3), occlusion_stride):
-            occluded_image = image.clone()
-            occluded_image[:, :, y:y+occlusion_size, x:x+occlusion_size] = 0.0
-            with torch.no_grad():
-                output = model(occluded_image.to(device))
-                score = F.softmax(output, dim=1)[0, label].item()
-            sensitivity_map[y:y+occlusion_size, x:x+occlusion_size] = original_score - score
-
-    return sensitivity_map
-
-def plot_occlusion_sensitivity(sensitivity_map, original_image, save_path=None):
-    original_image_np = np.transpose(original_image.numpy(), (1, 2, 0))
-    plt.figure(figsize=(10, 5))
-    plt.subplot(1, 2, 1)
-    plt.imshow((original_image_np * 0.5) + 0.5)
-    plt.title('Original Image')
-    plt.subplot(1, 2, 2)
-    plt.imshow(sensitivity_map, cmap='hot', interpolation='nearest')
-    plt.colorbar()
-    plt.title('Occlusion Sensitivity')
-    if save_path:
-        plt.savefig(save_path)
     plt.show()
 
-# Pick an image from the test dataset and compute occlusion sensitivity
-test_img, test_label = test_dataset[0]
-test_img = test_img.to(device)
-test_label = test_label.to(device)
-sensitivity_map = compute_occlusion_sensitivity(model, test_img, test_label.item(), occlusion_size=16, occlusion_stride=8)
-plot_occlusion_sensitivity(sensitivity_map, test_img.cpu(), save_path='./occlusion_sensitivity.png')
+# Train and test the model
+train_model(model, train_loader, criterion, optimizer, epochs=10)
+test_accuracy, test_precision, test_recall, test_f1 = test_model(model, test_loader)
+
+# Plot some sample predictions
+plot_sample_predictions(model, test_loader)
