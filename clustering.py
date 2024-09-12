@@ -68,10 +68,13 @@ for label_name in dataset.label_map.keys():
     label_dir = os.path.join(output_folder, label_name)
     os.makedirs(label_dir, exist_ok=True)
 
+reverse_label_map = {v: k for k, v in dataset.label_map.items()}
+
+
 # Copy images to their respective cluster folders based on label
 for idx in range(len(dataset)):
     img_name, label = dataset.image_paths[idx]
-    label_name = list(dataset.label_map.keys())[list(dataset.label_map.values()).index(label)]
+    label_name = reverse_label_map[label]  # Get the label name from the numerical label
     cluster_dir = os.path.join(output_folder, label_name)
     shutil.copy(img_name, os.path.join(cluster_dir, os.path.basename(img_name)))
 
