@@ -52,7 +52,7 @@ root_dirs = ['/root/stanfordData4321/stanfordData4321/standardized_images/images
             '/root/stanfordData4321/stanfordData4321/standardized_images/images2',
             '/root/stanfordData4321/stanfordData4321/standardized_images/images3',
             '/root/stanfordData4321/stanfordData4321/standardized_images/images4']  # Root directories containing images
-output_folder = '/root/stanfordData4321/clustersNew'  # Path to save the clustered images
+output_folder = '/root/stanfordData4321/stanfordData4321/clustersNew'  # Path to save the clustered images
 
 # Image transformations (if needed)
 transform = transforms.Compose([
