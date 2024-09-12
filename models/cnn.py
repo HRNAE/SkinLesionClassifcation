@@ -280,6 +280,94 @@ print(f"F1 Score: {f1:.4f}")
 
 
 
+class ClusterImageDataset(Dataset):
+    def __init__(self, cluster_dir, transform=None):
+        self.cluster_dir = cluster_dir
+        self.image_paths = []
+        self.transform = transform
+        self._load_images()
+
+    def _load_images(self):
+        for root, _, files in os.walk(self.cluster_dir):
+            for file in files:
+                if file.endswith(".png") or file.endswith(".jpg"):
+                    self.image_paths.append(os.path.join(root, file))
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        img_path = self.image_paths[idx]
+        image = Image.open(img_path).convert("RGB")
+        if self.transform:
+            image = self.transform(image)
+        return image, img_path
+
+
+# Path to the Clusters directory
+clusters_path = '/root/stanfordData4321/clustersNew'
+cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
+
+correct_predictions = {}
+total_images = {}
+
+# Function to get label from folder name
+def get_label_from_folder_name(folder_name):
+    # Extracts the numeric label from folder name (e.g., '1-benign-melanocytic nevus')
+    label_str = folder_name.split('-')[0]
+    return int(label_str)
+
+# Iterate over each cluster
+for cluster in cluster_folders:
+    cluster_name = os.path.basename(cluster)
+    print(f"Processing cluster: {cluster_name}")
+
+    # Get numeric label from the cluster folder name
+    cluster_label = get_label_from_folder_name(cluster_name)
+    
+    # Create dataset and loader for the current cluster
+    cluster_dataset = ClusterImageDataset(cluster, transform=transform)
+    cluster_loader = DataLoader(cluster_dataset, batch_size=1, shuffle=False)
+    
+    correct = 0
+    total = 0
+    image_count = 0
+    
+    # Iterate over images in the cluster
+    for images, img_paths in cluster_loader:
+        images = images.to(device)
+
+        # Make prediction
+        with torch.no_grad():
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+        
+        # Compare predicted label to cluster label
+        if predicted.item() == cluster_label:
+            correct += 1
+        total += 1
+
+        image_count += 1
+
+    # Update accuracy for the current cluster
+    correct_predictions[cluster_name] = correct
+    total_images[cluster_name] = total
+    
+    # Print accuracy for the cluster
+    if total > 0:
+        print(f"Cluster {cluster_name} accuracy: {100 * correct / total:.2f}%")
+    else:
+        print(f"No images found for cluster {cluster_name}")
+
+# After processing all clusters, print overall accuracy per cluster
+print("\nCluster-wise accuracy:")
+for cluster_name in correct_predictions:
+    correct = correct_predictions[cluster_name]
+    total = total_images[cluster_name]
+    accuracy = 100 * correct / total if total > 0 else 0
+    print(f"Cluster {cluster_name}: {accuracy:.2f}%")
+
+
 # # Occlusion Sensitivity Helper Functions
 # def compute_occlusion_sensitivity(model, image, label, occlusion_size=16, occlusion_stride=8):
 #     model.eval()  # Set the model to evaluation mode
