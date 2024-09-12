@@ -3,16 +3,17 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
-import torchvision.models as models
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset
 from PIL import Image
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from pytorch_grad_cam import GradCAM
-from pytorch_grad_cam.utils.image import show_cam_on_image
-import optuna
 from collections import Counter
+import optuna
+import matplotlib.pyplot as plt
+import cv2
+import numpy as np
+import matplotlib.cm as cm
+import torchvision.models as models
+
 
 # Define categories and image size
 categories = ['7-malignant-bcc', '1-benign-melanocytic nevus', '6-benign-other',
@@ -28,7 +29,6 @@ img_size = 224
 transform = transforms.Compose([
     transforms.Resize((img_size, img_size)),
     transforms.ToTensor(),
-     transforms.Normalize((0.5,0.5,0.5),(0.5,0.5,0.5))
 ])
 
 class ExcelImageDataset(Dataset):
@@ -72,27 +72,13 @@ class ExcelImageDataset(Dataset):
 
 # Define the root directories
 root_dirs = [
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images1',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images2',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images3',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images4'
+    '/root/stanfordData4321/standardized_images/images1',
+    '/root/stanfordData4321/standardized_images/images2',
+    '/root/stanfordData4321/standardized_images/images3',
+    '/root/stanfordData4321/standardized_images/images4'
 ]
 
-# Function to count images per label
-def count_images_per_label(dataset):
-    label_counts = Counter(label.item() for _, label in dataset)
-    return {categories[label]: count for label, count in label_counts.items()}
-
-# Load dataset
-dataset = ExcelImageDataset('./dataRef/release_midas.xlsx', root_dirs, transform)
-
-# Count images before augmentation
-pre_augmentation_counts = count_images_per_label(dataset)
-print("Image counts before augmentation:")
-for label, count in pre_augmentation_counts.items():
-    print(f"{label}: {count}")
-
-# Function to count images per label in augmented dataset
+# Augmented dataset class
 class AugmentedImageDataset(Dataset):
     def __init__(self, original_dataset, augmented_dir, transform=None):
         self.original_dataset = original_dataset
@@ -120,27 +106,20 @@ class AugmentedImageDataset(Dataset):
             image = self.transform(image)
         return image, torch.tensor(label, dtype=torch.long)
 
-# Create the combined dataset using augmented images
-augmented_dataset = AugmentedImageDataset(dataset, './augmented_images3', transform)
+# Create augmented dataset
+augmented_dataset = AugmentedImageDataset(ExcelImageDataset('./dataRef/release_midas.xlsx', root_dirs, transform), './augmented_images', transform)
 print(f"Total images in augmented dataset: {len(augmented_dataset)}")
 
-# Count images after augmentation
-post_augmentation_counts = count_images_per_label(augmented_dataset)
-print("Image counts after augmentation:")
-for label, count in post_augmentation_counts.items():
-    print(f"{label}: {count}")
-
-# Split dataset
+# Train and test split
 train_size = int(0.8 * len(augmented_dataset))
 test_size = len(augmented_dataset) - train_size
-train_dataset, test_dataset = random_split(augmented_dataset, [train_size, test_size])
+train_dataset, test_dataset = torch.utils.data.random_split(augmented_dataset, [train_size, test_size])
 
-print(f"Train dataset length: {len(train_dataset)}, Test dataset length: {len(test_dataset)}")
 
-train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False)
 
-# Load pre-trained model and modify the final layer
+# Load pre-trained ResNet model and modify final layer
 weights = models.ResNet18_Weights.DEFAULT
 net = models.resnet18(weights=weights)
 num_ftrs = net.fc.in_features
@@ -149,8 +128,6 @@ net.fc = nn.Linear(num_ftrs, len(categories))
 # Move the model to GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 net.to(device)
-print(device)
-
 # Optuna optimization
 def objective(trial):
     lr = trial.suggest_float('lr', 1e-5, 1e-1, log=True)
@@ -159,7 +136,7 @@ def objective(trial):
     optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
     criterion = nn.CrossEntropyLoss()
 
-    for epoch in range(3):  # Fewer epochs for faster optimization
+    for epoch in range(1):  # Fewer epochs for faster optimization
         net.train()
         running_loss = 0.0
         for inputs, labels in train_loader:
@@ -187,7 +164,7 @@ def objective(trial):
     return accuracy
 
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=2)
+study.optimize(objective, n_trials=8)
 
 best_params = study.best_params
 print("Best parameters found by Optuna:", best_params)
@@ -196,11 +173,9 @@ print("Best parameters found by Optuna:", best_params)
 best_lr = best_params['lr']
 best_momentum = best_params['momentum']
 optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
-
-# Define loss function and optimizer
 criterion = nn.CrossEntropyLoss()
 
-for epoch in range(5):  # Adjust epoch count as needed
+for epoch in range(3):  # Adjust epoch count
     net.train()
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
@@ -214,53 +189,148 @@ for epoch in range(5):  # Adjust epoch count as needed
         optimizer.step()
 
         running_loss += loss.item()
-        if i % 100 == 99:
+        if i % 2000 == 1999:
             print(f'[{epoch + 1}, {i + 1}] loss: {running_loss / 100:.3f}')
             running_loss = 0.0
 
 print('Finished Training')
 
 # Evaluate the model
-# Evaluate the model
 net.eval()
-correct = 0
-total = 0
+
+all_preds = []
+all_labels = []
+
+# Iterate through the test set
 with torch.no_grad():
-    for data in test_loader:
-        images, labels = data
-        images, labels = images.to(device), labels.to(device)  # Move labels to the same device as images
-        outputs = net(images)
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
-
-print(f'Accuracy on the test dataset: {100 * correct / total:.2f}%')
-
-
-# Grad-CAM visualization
-target_layers = [net.layer4[-1]]  # Last layer of the network
-cam = GradCAM(model=net, target_layers=target_layers, use_cuda=torch.cuda.is_available())
-
-# Display Grad-CAM for a few test images
-def visualize_gradcam(inputs, labels, predicted_labels):
-    for i in range(len(inputs)):
-        input_image = inputs[i].cpu().numpy().transpose(1, 2, 0)
-        input_image = (input_image - input_image.min()) / (input_image.max() - input_image.min())  # Normalize
-        grayscale_cam = cam(input_tensor=inputs[i:i+1], target_category=predicted_labels[i].item())
-        visualization = show_cam_on_image(input_image, grayscale_cam[0], use_rgb=True)
+    for images, labels in test_loader:
+        images, labels = images.to(device), labels.to(device)
         
-        plt.figure(figsize=(10, 5))
-        plt.subplot(1, 2, 1)
-        plt.imshow(input_image)
-        plt.title(f"Original - Label: {categories[labels[i].item()]}")
-        plt.subplot(1, 2, 2)
-        plt.imshow(visualization)
-        plt.title(f"Grad-CAM - Predicted: {categories[predicted_labels[i].item()]}")
-        plt.show()
+        # Get model predictions
+        outputs = net(images)
+        _, preds = torch.max(outputs, 1)
+        
+        # Collect predictions and labels
+        all_preds.extend(preds.cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
 
-# Test the Grad-CAM visualization with a few images
-inputs, labels = next(iter(test_loader))
-inputs, labels = inputs.to(device), labels.to(device)
-outputs = net(inputs)
-_, predicted = torch.max(outputs, 1)
-visualize_gradcam(inputs, labels, predicted)
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+
+# Calculate precision, recall, f1 score, and accuracy
+precision = precision_score(all_labels, all_preds, average='weighted')
+recall = recall_score(all_labels, all_preds, average='weighted')
+f1 = f1_score(all_labels, all_preds, average='weighted')
+accuracy = accuracy_score(all_labels, all_preds)
+
+print(f"Accuracy: {accuracy * 100:.2f}%")
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1 Score: {f1:.4f}")
+
+
+
+
+def generate_occlusion_sensitivity_map(image, model, occlusion_size=15, occlusion_stride=15):
+    """
+    Generate an occlusion sensitivity map for the given image and model.
+
+    Args:
+        image (torch.Tensor): Input image tensor of shape (1, C, H, W).
+        model (torch.nn.Module): Trained model.
+        occlusion_size (int): Size of the occlusion window.
+        occlusion_stride (int): Stride of the occlusion window.
+
+    Returns:
+        np.ndarray: Sensitivity map of the same size as the input image.
+    """
+    # Set model to evaluation mode
+    model.eval()
+
+    # Get original image size
+    if len(image.size()) == 5:  # If it's a 5D tensor
+        image = image.squeeze(1)  # Remove the extra dimension
+    _, _, h, w = image.size()
+
+    # Get the prediction for the original image
+    with torch.no_grad():
+        original_output = model(image)
+    original_class = original_output.argmax(dim=1).item()
+
+    # Initialize sensitivity map
+    sensitivity_map = np.zeros((h, w))
+
+    # Occlude part of the image and get model output for each occlusion
+    for i in range(0, h, occlusion_stride):
+        for j in range(0, w, occlusion_stride):
+            # Create a copy of the original image
+            occluded_image = image.clone()
+
+            # Apply occlusion (e.g., zero out a region)
+            occluded_image[:, :, i:i + occlusion_size, j:j + occlusion_size] = 0
+
+            # Get model prediction for the occluded image
+            with torch.no_grad():
+                occluded_output = model(occluded_image)
+            occluded_score = occluded_output[0, original_class].item()
+
+            # Fill the sensitivity map with the difference in score
+            sensitivity_map[i:i + occlusion_size, j:j + occlusion_size] = original_output[0, original_class].item() - occluded_score
+
+    # Normalize the sensitivity map
+    sensitivity_map = (sensitivity_map - np.min(sensitivity_map)) / (np.max(sensitivity_map) - np.min(sensitivity_map))
+    sensitivity_map = (sensitivity_map * 255).astype(np.uint8)
+
+    return sensitivity_map
+
+import os
+import shutil
+
+# List of 28 file paths
+
+output_dir = '/root/stanfordData4321/OSRES'
+os.makedirs(output_dir, exist_ok=True)  # Create directory if it doesn't exist
+
+# List of image paths and corresponding data
+image_paths = [
+    '/root/stanfordData4321/clusters/cluster_0/img_0_31.png',
+    '/root/stanfordData4321/clusters/cluster_0/img_1_6.png',
+    '/root/stanfordData4321/clusters/cluster_1/img_0_13.png',
+    '/root/stanfordData4321/clusters/cluster_1/img_1_5.png',
+    '/root/stanfordData4321/clusters/cluster_2/img_0_27.png',
+    '/root/stanfordData4321/clusters/cluster_2/img_1_4.png',
+    '/root/stanfordData4321/clusters/cluster_3/img_0_11.png',
+    '/root/stanfordData4321/clusters/cluster_3/img_0_22.png',
+    '/root/stanfordData4321/clusters/cluster_4/img_0_6.png',
+    '/root/stanfordData4321/clusters/cluster_4/img_0_18.png',
+    '/root/stanfordData4321/clusters/cluster_5/img_0_7.png',
+    '/root/stanfordData4321/clusters/cluster_5/img_0_16.png',
+    '/root/stanfordData4321/clusters/cluster_6/img_0_21.png',
+    '/root/stanfordData4321/clusters/cluster_6/img_0_23.png',
+    '/root/stanfordData4321/clusters/cluster_7/img_0_0.png',
+    '/root/stanfordData4321/clusters/cluster_7/img_0_1.png',
+    '/root/stanfordData4321/clusters/cluster_8/img_1_0.png',
+    '/root/stanfordData4321/clusters/cluster_8/img_1_1.png',
+    '/root/stanfordData4321/clusters/cluster_9/img_0_14.png',
+    '/root/stanfordData4321/clusters/cluster_9/img_0_15.png',
+    '/root/stanfordData4321/clusters/cluster_10/img_0_4.png',
+    '/root/stanfordData4321/clusters/cluster_10/img_0_12.png',
+    '/root/stanfordData4321/clusters/cluster_11/img_0_2.png',
+    '/root/stanfordData4321/clusters/cluster_11/img_0_17.png',
+    '/root/stanfordData4321/clusters/cluster_12/img_1_19.png',
+    '/root/stanfordData4321/clusters/cluster_12/img_2_8.png',
+    '/root/stanfordData4321/clusters/cluster_13/img_0_3.png',
+    '/root/stanfordData4321/clusters/cluster_13/img_3_5.png',
+]  # Replace with your list of image paths
+# Assume you have a DataLoader or similar mechanism to load images and labels
+for img_path in image_paths:
+    # Load and preprocess the image
+    image = Image.open(img_path).convert("RGB")
+    image = transform(image).unsqueeze(0).to(device)
+
+    # Generate the sensitivity map
+    sensitivity_map = generate_occlusion_sensitivity_map(image, net)
+
+    # Resize and save the sensitivity map
+    result_path = os.path.join('./OS', os.path.basename(img_path).replace('.jpg', '_sensitivity.png'))
+    cv2.imwrite(result_path, sensitivity_map)
+    print(f"Sensitivity map saved for {img_path} at {result_path}")
