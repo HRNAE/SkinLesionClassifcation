@@ -248,51 +248,25 @@ def generate_occlusion_sensitivity_map(image, model, occlusion_size=15, occlusio
 
 class ClusterImageDataset(Dataset):
     def __init__(self, cluster_dir, transform=None):
-        """
-        Initialize the dataset with the directory containing images.
-        
-        Args:
-            cluster_dir (str): Path to the cluster folder.
-            transform (callable, optional): A function/transform to apply to the images.
-        """
         self.cluster_dir = cluster_dir
+        self.image_paths = []
         self.transform = transform
-        self.image_paths = self._get_image_paths()
-        
-    def _get_image_paths(self):
-        """
-        Get all image paths in the cluster directory.
-        
-        Returns:
-            list: A list of tuples where each tuple contains the image path and the folder name (cluster).
-        """
-        image_paths = []
+        self._load_images()
+
+    def _load_images(self):
         for root, _, files in os.walk(self.cluster_dir):
             for file in files:
-                if file.endswith(".png") or file.endswith(".jpg"):  # Add other extensions if needed
-                    img_path = os.path.join(root, file)
-                    image_paths.append(img_path)
-        return image_paths
+                if file.endswith(".png") or file.endswith(".jpg"):
+                    self.image_paths.append(os.path.join(root, file))
 
     def __len__(self):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        """
-        Get an image and its path.
-        
-        Args:
-            idx (int): Index of the image.
-        
-        Returns:
-            tuple: (image, img_path) where image is the transformed image and img_path is its file path.
-        """
         img_path = self.image_paths[idx]
         image = Image.open(img_path).convert("RGB")
-        
         if self.transform:
             image = self.transform(image)
-        
         return image, img_path
 
 
@@ -300,17 +274,15 @@ class ClusterImageDataset(Dataset):
 clusters_path = '/root/stanfordData4321/stanfordData4321/clustersNew'
 cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
 
-# Initialize dictionaries to track accuracy for each cluster
-correct_predictions = {cluster: 0 for cluster in cluster_folders}
-total_images = {cluster: 0 for cluster in cluster_folders}
+correct_predictions = {}
+total_images = {}
 
-# Create directory for saving sensitivity maps if it doesn't exist
-if not os.path.exists('/root/stanfordData4321/stanfordData4321/sensitivity_mapsRes'):
-    os.makedirs('/root/stanfordData4321/stanfordData4321/sensitivity_mapsRes')
-
-# Loop through clusters
+# Iterate over clusters
 for cluster in cluster_folders:
     print(f"Processing cluster: {os.path.basename(cluster)}")
+    
+    # Extract the numeric label from the cluster folder name
+    cluster_number = os.path.basename(cluster).split('-')[0]
     
     # Create dataset and loader for the current cluster
     cluster_dataset = ClusterImageDataset(cluster, transform=transform)
@@ -329,7 +301,6 @@ for cluster in cluster_folders:
             _, predicted = torch.max(outputs.data, 1)
         
         # Check if prediction is correct
-        cluster_number_label = os.path.basename(cluster).split('-')[0]
         if predicted.item() == int(cluster_number):
             correct += 1
         total += 1
@@ -358,14 +329,7 @@ for cluster in cluster_folders:
         image_count += 1
 
     # Update accuracy for current cluster
-    correct_predictions[cluster] += correct
-    total_images[cluster] += total
+    correct_predictions[cluster] = correct
+    total_images[cluster] = total
     
     print(f"Cluster {os.path.basename(cluster)} accuracy: {100 * correct / total:.2f}%")
-
-
-# Calculate and print overall accuracy across clusters
-overall_correct = sum(correct_predictions.values())
-overall_total = sum(total_images.values())
-overall_accuracy = 100 * overall_correct / overall_total
-print(f"Overall accuracy across all clusters: {overall_accuracy:.2f}%")
