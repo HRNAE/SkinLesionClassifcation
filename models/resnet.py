@@ -72,10 +72,10 @@ class ExcelImageDataset(Dataset):
 
 # Define the root directories
 root_dirs = [
-    '/root/stanfordData4321/standardized_images/images1',
-    '/root/stanfordData4321/standardized_images/images2',
-    '/root/stanfordData4321/standardized_images/images3',
-    '/root/stanfordData4321/standardized_images/images4'
+    '/root/stanfordData4321/stanfordData4321/standardized_images/images1',
+    '/root/stanfordData4321/stanfordData4321/standardized_images/images2',
+    '/root/stanfordData4321/stanfordData4321/standardized_images/images3',
+    '/root/stanfordData4321/stanfordData4321/standardized_images/images4'
 ]
 
 # Augmented dataset class
@@ -338,7 +338,7 @@ class ClusterImageDataset(Dataset):
 
 
 # Path to the Clusters directory
-clusters_path = '/root/stanfordData4321/clustersNew'
+clusters_path = '/root/stanfordData4321/stanfordData4321/clustersNew'
 cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
 
 # Initialize dictionaries to track accuracy for each cluster
@@ -346,8 +346,8 @@ correct_predictions = {cluster: 0 for cluster in cluster_folders}
 total_images = {cluster: 0 for cluster in cluster_folders}
 
 # Create directory for saving sensitivity maps if it doesn't exist
-if not os.path.exists('./sensitivity_mapsRes'):
-    os.makedirs('./sensitivity_mapsDense')
+if not os.path.exists('/root/stanfordData4321/stanfordData4321/sensitivity_mapsRes'):
+    os.makedirs('/root/stanfordData4321/stanfordData4321/sensitivity_mapsRes')
 
 # Loop through clusters
 for cluster in cluster_folders:
