@@ -115,8 +115,8 @@ train_size = int(0.8 * len(augmented_dataset))
 test_size = len(augmented_dataset) - train_size
 train_dataset, test_dataset = torch.utils.data.random_split(augmented_dataset, [train_size, test_size])
 
-train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False)
 
 # Load pre-trained ResNet model and modify final layer
 weights = models.ResNet18_Weights.DEFAULT
@@ -163,7 +163,7 @@ def objective(trial):
     return accuracy
 
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=1)
+study.optimize(objective, n_trials=8)
 
 best_params = study.best_params
 print("Best parameters found by Optuna:", best_params)
