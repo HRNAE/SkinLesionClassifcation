@@ -215,6 +215,9 @@ with torch.no_grad():
         all_preds.extend(preds.cpu().numpy())
         all_labels.extend(labels.cpu().numpy())
 
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+import torch
+
 # Calculate precision, recall, f1 score, and accuracy
 precision = precision_score(all_labels, all_preds, average='weighted')
 recall = recall_score(all_labels, all_preds, average='weighted')
