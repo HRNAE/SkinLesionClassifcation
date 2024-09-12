@@ -56,21 +56,27 @@ output_folder = '/root/stanfordData4321/clustersNew'  # Path to save the cluster
 
 # Image transformations (if needed)
 transform = transforms.Compose([
-    transforms.Resize((224, 224)),
+    transforms.Resize((700, 700)),
     transforms.ToTensor(),
 ])
 
 # Initialize dataset
 dataset = ExcelImageDataset(excel_file, root_dirs, transform=transform)
 
-# Create directories for each label/cluster
+# Create directories for each label/cluster inside your GitHub repository
 for label_name in dataset.label_map.keys():
     label_dir = os.path.join(output_folder, label_name)
     os.makedirs(label_dir, exist_ok=True)
+    print(f"Directory created: {label_dir}")
 
-# Copy images to their respective cluster folders based on label (label is already a string)
+# Copy images to their respective cluster folders based on label
 for img_name, label in dataset.image_paths:
     cluster_dir = os.path.join(output_folder, label)  # Label is directly used as folder name
-    shutil.copy(img_name, os.path.join(cluster_dir, os.path.basename(img_name)))
+    try:
+        # Ensure the image is copied
+        shutil.copy(img_name, os.path.join(cluster_dir, os.path.basename(img_name)))
+        print(f"Image {img_name} copied to {cluster_dir}")
+    except Exception as e:
+        print(f"Error copying {img_name} to {cluster_dir}: {e}")
 
 print(f"Images have been clustered and saved to {output_folder}.")
