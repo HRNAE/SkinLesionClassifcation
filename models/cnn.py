@@ -158,6 +158,7 @@ class CustomModel(nn.Module):
         self.fc1 = nn.Linear(128 * 7 * 7, 512)
         self.fc2 = nn.Linear(512, 128)
         self.fc3 = nn.Linear(128, len(categories))
+        
     def forward(self, x):
         x = self.pool1(F.relu(self.conv1(x)))
         x = self.pool2(F.relu(self.conv2(x)))
@@ -214,7 +215,7 @@ def objective(trial):
 
 # Create an Optuna study
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=10)  # Run for a number of trials
+study.optimize(objective, n_trials=5)  # Run for a number of trials
 
 # Get the best hyperparameters after the study
 best_params = study.best_params
