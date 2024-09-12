@@ -1,4 +1,4 @@
-os
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,24 +15,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-
-# Use GPU if available
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-logging.info("Using device: %s", device)
-
-
-# Load the Excel file
-excel_file_path = './dataRef/release_midas.xlsx'
-if not os.path.exists(excel_file_path):
-    raise FileNotFoundError(f"{excel_file_path} does not exist. Please check the path.")
-df = pd.read_excel(excel_file_path)
-logging.info("Excel file loaded. First few rows:")
-logging.info("%s", df.head())
-
-
 # Define categories and image size
 categories = ['7-malignant-bcc', '1-benign-melanocytic nevus', '6-benign-other',
               '14-other-non-neoplastic/inflammatory/infectious', '8-malignant-scc',
@@ -43,14 +25,27 @@ categories = ['7-malignant-bcc', '1-benign-melanocytic nevus', '6-benign-other',
               '12-malignant-other']
 img_size = 224  # Image size set to 224
 
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Use GPU if available
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+logging.info("Using device: %s", device)
+
+# Load the Excel file
+excel_file_path = './dataRef/release_midas.xlsx'
+if not os.path.exists(excel_file_path):
+    raise FileNotFoundError(f"{excel_file_path} does not exist. Please check the path.")
+df = pd.read_excel(excel_file_path)
+logging.info("Excel file loaded. First few rows:")
+logging.info("%s", df.head())
+
 
 # Compose the transformation pipeline
 transform = transforms.Compose([
     transforms.Resize((img_size, img_size)),
     transforms.ToTensor(),
-    transforms.Normalize((0.5,), (0.5,))
 ])
-
 
 
 class ExcelImageDataset(Dataset):
@@ -93,10 +88,10 @@ class ExcelImageDataset(Dataset):
 
 # Define the root directories
 root_dirs = [
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images1',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images2',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images3',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images4'
+    '/root/stanfordData4321/standardized_images/images1',
+    '/root/stanfordData4321/standardized_images/images2',
+    '/root/stanfordData4321/standardized_images/images3',
+    '/root/stanfordData4321/standardized_images/images4'
 ]
 
 # Dataset class to load augmented images from the directory
@@ -125,32 +120,13 @@ class AugmentedImageDataset(Dataset):
         return image, torch.tensor(label, dtype=torch.long)
 
 
-
 # Load original dataset
-logging.info("Creating combined dataset...")
+logging.info("Creating dataset...")
 dataset = ExcelImageDataset(excel_file_path, root_dirs, transform)
-
 
 # Load augmented dataset
 augmented_dataset = AugmentedImageDataset(dataset, './augmented_images', transform)
 
-
-
-# Combined dataset
-class CombinedDataset(Dataset):
-    def __init__(self, original_dataset, augmented_dataset):
-        self.original_dataset = original_dataset
-        self.augmented_dataset = augmented_dataset
-    def __len__(self):
-        return len(self.original_dataset) + len(self.augmented_dataset)
-    def __getitem__(self, idx):
-        if idx < len(self.original_dataset):
-            return self.original_dataset[idx]
-        else:
-            return self.augmented_dataset[idx - len(self.original_dataset)]
-# Create the combined dataset
-combined_dataset = CombinedDataset(dataset, augmented_dataset)
-print(f"Total images in combined dataset: {len(combined_dataset)}")
 # Split dataset into training and testing subsets
 logging.info("Splitting dataset into training and testing subsets...")
 train_size = int(0.8 * len(augmented_dataset))
@@ -159,6 +135,10 @@ train_dataset, test_dataset = random_split(augmented_dataset, [train_size, test_
 logging.info("Length train dataset: %d", len(train_dataset))
 logging.info("Length test dataset: %d", len(test_dataset))
 
+# Set up data loaders
+batch_size = 32
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
 
 # Define the custom model class based on your initial architecture
@@ -191,17 +171,60 @@ class CustomModel(nn.Module):
         return x
 
 
-# Create model instance, loss function, and optimizer
 model = CustomModel().to(device)
+def objective(trial):
+    # Suggest hyperparameters with Optuna
+    lr = trial.suggest_float('lr', 1e-5, 1e-1, log=True)
+    momentum = trial.suggest_float('momentum', 0.5, 0.9)
+    
+
+    # Define the optimizer and loss function
+    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum)
+    criterion = nn.CrossEntropyLoss()
+
+    # Training loop (1 epoch for faster optimization)
+    model.train()
+    for epoch in range(5):  # Set to a higher number for actual training
+        running_loss = 0.0
+        for inputs, labels in train_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+
+    # Evaluation loop
+    model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs = model(inputs)
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    # Compute accuracy as the performance metric
+    accuracy = correct / total
+    return accuracy
+
+# Create an Optuna study
+study = optuna.create_study(direction='maximize')
+study.optimize(objective, n_trials=10)  # Run for a number of trials
+
+# Get the best hyperparameters after the study
+best_params = study.best_params
+print(f"Best hyperparameters found by Optuna: {best_params}")
+
+# Use the best hyperparameters to train the model for more epochs
+best_lr = best_params['lr']
+best_momentum = best_params['momentum']
+optimizer = optim.SGD(model.parameters(), lr=best_lr, momentum=best_momentum)
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-
-
-# Set up data loaders
-batch_size = 16
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
-
 
 # Train the model
 def train_model(model, train_loader, criterion, optimizer, num_epochs=25):
@@ -218,63 +241,81 @@ def train_model(model, train_loader, criterion, optimizer, num_epochs=25):
             running_loss += loss.item()
         logging.info("Epoch [%d/%d], Loss: %.4f", epoch+1, num_epochs, running_loss/len(train_loader))
 logging.info("Starting training...")
-train_model(model, train_loader, criterion, optimizer, num_epochs=35)
+train_model(model, train_loader, criterion, optimizer)
 
 
-# Test the model
-def test_model(model, test_loader):
-    model.eval()
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for images, labels in test_loader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-    logging.info('Test Accuracy: %.2f %%', 100 * correct / total)
-logging.info("Starting testing...")
-test_model(model, test_loader)
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+
+# Ensure model is in evaluation mode
+model.eval()
+
+all_preds = []
+all_labels = []
+
+# Iterate through the test set
+with torch.no_grad():
+    for images, labels in test_loader:
+        images, labels = images.to(device), labels.to(device)
+        
+        # Get model predictions
+        outputs = model(images)
+        _, preds = torch.max(outputs, 1)
+        
+        # Collect predictions and labels
+        all_preds.extend(preds.cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
+
+# Calculate precision, recall, f1 score, and accuracy
+precision = precision_score(all_labels, all_preds, average='weighted')
+recall = recall_score(all_labels, all_preds, average='weighted')
+f1 = f1_score(all_labels, all_preds, average='weighted')
+accuracy = accuracy_score(all_labels, all_preds)
+
+# Print the results
+print(f"Accuracy: {accuracy * 100:.2f}%")
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1 Score: {f1:.4f}")
 
 
-# Occlusion Sensitivity Helper Functions
-def compute_occlusion_sensitivity(model, image, label, occlusion_size=16, occlusion_stride=8):
-    model.eval()  # Set the model to evaluation mode
-    image = image.unsqueeze(0)
-    with torch.no_grad():
-        original_output = model(image.to(device))
-        original_score = F.softmax(original_output, dim=1)[0, label].item()
-    sensitivity_map = np.zeros((image.size(2), image.size(3)))
-    for y in range(0, image.size(2), occlusion_stride):
-        for x in range(0, image.size(3), occlusion_stride):
-            occluded_image = image.clone()
-            occluded_image[:, :, y:y+occlusion_size, x:x+occlusion_size] = 0.0
-            with torch.no_grad():
-                output = model(occluded_image.to(device))
-                score = F.softmax(output, dim=1)[0, label].item()
-            sensitivity_map[y:y+occlusion_size, x:x+occlusion_size] = original_score - score
-    return sensitivity_map
+
+# # Occlusion Sensitivity Helper Functions
+# def compute_occlusion_sensitivity(model, image, label, occlusion_size=16, occlusion_stride=8):
+#     model.eval()  # Set the model to evaluation mode
+#     image = image.unsqueeze(0)
+#     with torch.no_grad():
+#         original_output = model(image.to(device))
+#         original_score = F.softmax(original_output, dim=1)[0, label].item()
+#     sensitivity_map = np.zeros((image.size(2), image.size(3)))
+#     for y in range(0, image.size(2), occlusion_stride):
+#         for x in range(0, image.size(3), occlusion_stride):
+#             occluded_image = image.clone()
+#             occluded_image[:, :, y:y+occlusion_size, x:x+occlusion_size] = 0.0
+#             with torch.no_grad():
+#                 output = model(occluded_image.to(device))
+#                 score = F.softmax(output, dim=1)[0, label].item()
+#             sensitivity_map[y:y+occlusion_size, x:x+occlusion_size] = original_score - score
+#     return sensitivity_map
 
 
-def plot_occlusion_sensitivity(sensitivity_map, original_image, save_path=None):
-    original_image_np = np.transpose(original_image.numpy(), (1, 2, 0))
-    plt.figure(figsize=(10, 5))
-    plt.subplot(1, 2, 1)
-    plt.imshow((original_image_np * 0.5) + 0.5)
-    plt.title('Original Image')
-    plt.subplot(1, 2, 2)
-    plt.imshow(sensitivity_map, cmap='hot', interpolation='nearest')
-    plt.colorbar()
-    plt.title('Occlusion Sensitivity')
-    if save_path:
-        plt.savefig(save_path)
-    plt.show()
+# def plot_occlusion_sensitivity(sensitivity_map, original_image, save_path=None):
+#     original_image_np = np.transpose(original_image.numpy(), (1, 2, 0))
+#     plt.figure(figsize=(10, 5))
+#     plt.subplot(1, 2, 1)
+#     plt.imshow((original_image_np * 0.5) + 0.5)
+#     plt.title('Original Image')
+#     plt.subplot(1, 2, 2)
+#     plt.imshow(sensitivity_map, cmap='hot', interpolation='nearest')
+#     plt.colorbar()
+#     plt.title('Occlusion Sensitivity')
+#     if save_path:
+#         plt.savefig(save_path)
+#     plt.show()
 
-    
-# Pick an image from the test dataset and compute occlusion sensitivity
-test_img, test_label = test_dataset[0]
-test_img = test_img.to(device)
-test_label = test_label.to(device)
-sensitivity_map = compute_occlusion_sensitivity(model, test_img, test_label.item(), occlusion_size=16, occlusion_stride=8)
-plot_occlusion_sensitivity(sensitivity_map, test_img.cpu(), save_path='./occlusion_sensitivity.png')
+
+# # Pick an image from the test dataset and compute occlusion sensitivity
+# test_img, test_label = test_dataset[0]
+# test_img = test_img.to(device)
+# test_label = test_label.to(device)
+# sensitivity_map = compute_occlusion_sensitivity(model, test_img, test_label.item(), occlusion_size=16, occlusion_stride=8)
+# plot_occlusion_sensitivity(sensitivity_map, test_img.cpu(), save_path='./occlusion_sensitivity.png')

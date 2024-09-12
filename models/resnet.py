@@ -118,7 +118,7 @@ train_dataset, test_dataset = torch.utils.data.random_split(augmented_dataset, [
 train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False)
 
-# Load pre-trained DenseNet model and modify final layer
+# Load pre-trained ResNet model and modify final layer
 weights = models.ResNet18_Weights.DEFAULT
 net = models.resnet18(weights=weights)
 num_ftrs = net.fc.in_features
@@ -172,8 +172,6 @@ print("Best parameters found by Optuna:", best_params)
 best_lr = best_params['lr']
 best_momentum = best_params['momentum']
 optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
-
-
 criterion = nn.CrossEntropyLoss()
 
 for epoch in range(7):  # Adjust epoch count
@@ -216,7 +214,6 @@ with torch.no_grad():
         all_labels.extend(labels.cpu().numpy())
 
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
-import torch
 
 # Calculate precision, recall, f1 score, and accuracy
 precision = precision_score(all_labels, all_preds, average='weighted')
@@ -229,13 +226,7 @@ print(f"Precision: {precision:.4f}")
 print(f"Recall: {recall:.4f}")
 print(f"F1 Score: {f1:.4f}")
 
-# Define the transformation for the images
-transform = transforms.Compose([
-    transforms.Resize((700, 700)),  # Resize to 700x700
-    transforms.ToTensor(),
-])
-import numpy as np
-import torch
+
 
 def generate_occlusion_sensitivity_map(image, model, occlusion_size=15, occlusion_stride=15):
     """
