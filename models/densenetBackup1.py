@@ -321,13 +321,27 @@ image_paths = [
 # Assume you have a DataLoader or similar mechanism to load images and labels
 for img_path in image_paths:
     # Load and preprocess the image
-    image = Image.open(img_path).convert("RGB")
-    image = transform(image).unsqueeze(0).to(device)
+    try:
+        image = Image.open(img_path).convert("RGB")
+        image = transform(image).unsqueeze(0).to(device)
 
-    # Generate the sensitivity map
-    sensitivity_map = generate_occlusion_sensitivity_map(image, net)
+        # Generate the sensitivity map
+        sensitivity_map = generate_occlusion_sensitivity_map(image, net)
 
-    # Resize and save the sensitivity map
-    result_path = os.path.join('./OS', os.path.basename(img_path).replace('.jpg', '_sensitivity.png'))
-    cv2.imwrite(result_path, sensitivity_map)
-    print(f"Sensitivity map saved for {img_path} at {result_path}")
+        # Convert to NumPy array if necessary
+        if isinstance(sensitivity_map, torch.Tensor):
+            sensitivity_map = sensitivity_map.squeeze().cpu().numpy()
+
+        # Resize and save the sensitivity map
+        os.makedirs('./OSDES', exist_ok=True)
+        result_path = os.path.join('./OS', os.path.basename(img_path).replace('.jpg', '_sensitivity.png'))
+        cv2.imwrite(result_path, sensitivity_map)
+        print(f"Sensitivity map saved for {img_path} at {result_path}")
+
+    except Exception as e:
+        print(f"Error processing {img_path}: {e}")
+
+# GitHub commands to update repository
+os.system("git add ./OS/*")
+os.system("git commit -m 'Added updated sensitivity maps'")
+os.system("git push")
