@@ -72,10 +72,10 @@ class ExcelImageDataset(Dataset):
 
 # Define the root directories
 root_dirs = [
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images1',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images2',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images3',
-    '/root/stanfordData4321/stanfordData4321/standardized_images/images4'
+    '/root/stanfordData4321/standardized_images/images1',
+    '/root/stanfordData4321/standardized_images/images2',
+    '/root/stanfordData4321/standardized_images/images3',
+    '/root/stanfordData4321/standardized_images/images4'
 ]
 
 # Augmented dataset class
@@ -116,8 +116,8 @@ test_size = len(augmented_dataset) - train_size
 train_dataset, test_dataset = torch.utils.data.random_split(augmented_dataset, [train_size, test_size])
 
 
-train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False)
 
 # Load pre-trained ResNet model and modify final layer
 weights = models.ResNet18_Weights.DEFAULT
@@ -164,7 +164,7 @@ def objective(trial):
     return accuracy
 
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=1)
+study.optimize(objective, n_trials=8)
 
 best_params = study.best_params
 print("Best parameters found by Optuna:", best_params)
@@ -175,7 +175,7 @@ best_momentum = best_params['momentum']
 optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
 criterion = nn.CrossEntropyLoss()
 
-for epoch in range(7):  # Adjust epoch count
+for epoch in range(1):  # Adjust epoch count
     net.train()
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
@@ -229,113 +229,6 @@ print(f"F1 Score: {f1:.4f}")
 
 
 
-def generate_occlusion_sensitivity_map(image, model, occlusion_size=15, occlusion_stride=15):
-    """
-    Generate an occlusion sensitivity map for the given image and model.
-
-    Args:
-        image (torch.Tensor): Input image tensor of shape (1, C, H, W).
-        model (torch.nn.Module): Trained model.
-        occlusion_size (int): Size of the occlusion window.
-        occlusion_stride (int): Stride of the occlusion window.
-
-    Returns:
-        np.ndarray: Sensitivity map of the same size as the input image.
-    """
-    # Set model to evaluation mode
-    model.eval()
-
-    # Get original image size
-    if len(image.size()) == 5:  # If it's a 5D tensor
-        image = image.squeeze(1)  # Remove the extra dimension
-    _, _, h, w = image.size()
-
-    # Get the prediction for the original image
-    with torch.no_grad():
-        original_output = model(image)
-    original_class = original_output.argmax(dim=1).item()
-
-    # Initialize sensitivity map
-    sensitivity_map = np.zeros((h, w))
-
-    # Occlude part of the image and get model output for each occlusion
-    for i in range(0, h, occlusion_stride):
-        for j in range(0, w, occlusion_stride):
-            # Create a copy of the original image
-            occluded_image = image.clone()
-
-            # Apply occlusion (e.g., zero out a region)
-            occluded_image[:, :, i:i + occlusion_size, j:j + occlusion_size] = 0
-
-            # Get model prediction for the occluded image
-            with torch.no_grad():
-                occluded_output = model(occluded_image)
-            occluded_score = occluded_output[0, original_class].item()
-
-            # Fill the sensitivity map with the difference in score
-            sensitivity_map[i:i + occlusion_size, j:j + occlusion_size] = original_output[0, original_class].item() - occluded_score
-
-    # Normalize the sensitivity map
-    sensitivity_map = (sensitivity_map - np.min(sensitivity_map)) / (np.max(sensitivity_map) - np.min(sensitivity_map))
-    sensitivity_map = (sensitivity_map * 255).astype(np.uint8)
-
-    return sensitivity_map
-
-import os
-import shutil
-
-# List of 28 file paths
-
-output_dir = '/root/stanfordData4321/stanfordData4321/OS'
-os.makedirs(output_dir, exist_ok=True)  # Create directory if it doesn't exist
-
-# List of image paths and corresponding data
-image_paths = [
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_0/img_0_31.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_0/img_1_6.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_1/img_0_13.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_1/img_1_5.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_2/img_0_27.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_2/img_1_4.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_3/img_0_11.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_3/img_0_22.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_4/img_0_6.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_4/img_0_18.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_5/img_0_7.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_5/img_0_16.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_6/img_0_21.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_6/img_0_23.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_7/img_0_0.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_7/img_0_1.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_8/img_1_0.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_8/img_1_1.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_9/img_0_14.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_9/img_0_15.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_10/img_0_4.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_10/img_0_12.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_11/img_0_2.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_11/img_0_17.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_12/img_1_19.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_12/img_2_8.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_13/img_0_3.png',
-    '/root/stanfordData4321/stanfordData4321/clusters/cluster_13/img_3_5.png',
-]  # Replace with your list of image paths
-# Assume you have a DataLoader or similar mechanism to load images and labels
-for img_path in image_paths:
-    # Load and preprocess the image
-    image = Image.open(img_path).convert("RGB")
-    image = transform(image).unsqueeze(0).to(device)
-
-    # Generate the sensitivity map
-    sensitivity_map = generate_occlusion_sensitivity_map(image, net)
-
-    # Resize and save the sensitivity map
-    result_path = os.path.join('./OS', os.path.basename(img_path).replace('.jpg', '_sensitivity.png'))
-    cv2.imwrite(result_path, sensitivity_map)
-    print(f"Sensitivity map saved for {img_path} at {result_path}")
-
-
-
 
 class ClusterImageDataset(Dataset):
     def __init__(self, cluster_dir, transform=None):
@@ -362,7 +255,7 @@ class ClusterImageDataset(Dataset):
 
 
 # Path to the Clusters directory
-clusters_path = '/root/stanfordData4321/stanfordData4321/clustersNew'
+clusters_path = '/root/stanfordData4321/clustersNew'
 cluster_folders = [os.path.join(clusters_path, d) for d in os.listdir(clusters_path) if os.path.isdir(os.path.join(clusters_path, d))]
 
 correct_predictions = {}
@@ -403,27 +296,6 @@ for cluster in cluster_folders:
         if predicted.item() == cluster_label:
             correct += 1
         total += 1
-
-        # Generate occlusion sensitivity map for first two images in the cluster
-        if image_count < 2:
-            # Generate occlusion sensitivity map
-            sensitivity_map = generate_occlusion_sensitivity_map(images.unsqueeze(0), net)
-            sensitivity_map = cv2.resize(sensitivity_map, (700, 700))
-
-            # Read and resize overlay image
-            overlay_image = cv2.imread(img_paths[0])
-            if overlay_image is None:
-                print(f"Warning: Could not read image {img_paths[0]}")
-                continue
-
-            overlay_image = cv2.resize(overlay_image, (700, 700))
-            heatmap = cv2.applyColorMap(sensitivity_map, cv2.COLORMAP_JET)
-            result = cv2.addWeighted(overlay_image, 0.7, heatmap, 0.3, 0)
-
-            # Save the sensitivity map
-            result_path = f"./root/stanfordData4321/stanfordData4321/sentivity_maps/{cluster_name}_image_{image_count}.png"
-            cv2.imwrite(result_path, result)
-            print(f"Sensitivity map saved for image {image_count} in cluster {cluster_name}")
 
         image_count += 1
 
