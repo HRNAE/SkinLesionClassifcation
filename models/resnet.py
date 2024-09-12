@@ -373,7 +373,7 @@ for cluster in cluster_folders:
             _, predicted = torch.max(outputs.data, 1)
         
         # Check if prediction is correct
-        cluster_number = os.path.basename(cluster).split('_')[-1]  # Extract the number from the folder name
+        cluster_number_label = cluster_number.split('-')[0]
         if predicted.item() == int(cluster_number):
             correct += 1
         total += 1
