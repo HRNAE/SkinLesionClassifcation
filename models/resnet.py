@@ -176,7 +176,7 @@ optimizer = optim.SGD(net.parameters(), lr=best_lr, momentum=best_momentum)
 
 criterion = nn.CrossEntropyLoss()
 
-for epoch in range(1):  # Adjust epoch count
+for epoch in range(7):  # Adjust epoch count
     net.train()
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
@@ -288,6 +288,60 @@ def generate_occlusion_sensitivity_map(image, model, occlusion_size=15, occlusio
     sensitivity_map = (sensitivity_map * 255).astype(np.uint8)
 
     return sensitivity_map
+
+import os
+import shutil
+
+# List of 28 file paths
+
+output_dir = '/root/stanfordData4321/stanfordData4321/OS'
+os.makedirs(output_dir, exist_ok=True)  # Create directory if it doesn't exist
+
+# List of image paths and corresponding data
+image_paths = [
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_0/img_0_31.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_0/img_1_6.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_1/img_0_13.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_1/img_1_5.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_2/img_0_27.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_2/img_1_4.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_3/img_0_11.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_3/img_0_22.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_4/img_0_6.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_4/img_0_18.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_5/img_0_7.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_5/img_0_16.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_6/img_0_21.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_6/img_0_23.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_7/img_0_0.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_7/img_0_1.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_8/img_1_0.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_8/img_1_1.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_9/img_0_14.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_9/img_0_15.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_10/img_0_4.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_10/img_0_12.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_11/img_0_2.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_11/img_0_17.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_12/img_1_19.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_12/img_2_8.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_13/img_0_3.png',
+    '/root/stanfordData4321/stanfordData4321/clusters/cluster_13/img_3_5.png',
+]  # Replace with your list of image paths
+# Assume you have a DataLoader or similar mechanism to load images and labels
+for i, (image, label) in enumerate(your_data_loader):
+    image = image.to(device)  # Move image to GPU if needed
+    sensitivity_map = generate_occlusion_sensitivity_map(image.unsqueeze(0), net)
+    
+    # Resize sensitivity map to the original image size if needed
+    # sensitivity_map = cv2.resize(sensitivity_map, (original_width, original_height))
+
+    # Save sensitivity map
+    output_path = os.path.join(output_dir, f"sensitivity_map_{i}.png")
+    cv2.imwrite(output_path, sensitivity_map)
+    print(f"Sensitivity map saved to {output_path}")
+
+
 
 
 class ClusterImageDataset(Dataset):
